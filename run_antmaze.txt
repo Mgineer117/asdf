@@ -1,0 +1,3 @@
+nohup python3 main.py --project IRPO --algo-name irpo --env-name antmaze-v1 &
+nohup python3 main.py --project IRPO --algo-name irpo --env-name antmaze-v2 &
+nohup python3 main.py --project IRPO --algo-name irpo --env-name antmaze-v3 &

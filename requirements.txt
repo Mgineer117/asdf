@@ -1,0 +1,16 @@
+ale-py==0.11.2
+gymnasium==1.1.1
+mujoco==3.0.0
+pettingzoo==1.25.0
+scikit-learn==1.7.2
+scipy==1.15.3
+sympy==1.14.0
+numpy
+imageio
+matplotlib
+moviepy
+pandas
+tensorboard
+torch
+tqdm
+wandb

@@ -1,0 +1,11 @@
+{
+    "hl_timesteps": 1e7,
+    "sub_timesteps": 1e7,
+    "timesteps": 3e7,
+    "gamma": 0.99,
+    "num_options": 2,
+    "int_reward_type": "random",
+    "batch_size": 2048,
+    "num_minibatch": 4,
+    "minibatch_size": 512
+}
