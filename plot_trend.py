@@ -44,7 +44,7 @@ class NeuralNet(nn.Module):
         return self.network(x), None
 
 
-# --- 2. Shared Configuration ---
+# --- 2. Shared Configuration --- #
 FEATURE_DIM = 16
 INDICES_TO_PLOT = [0, 1, 2, 3]  # Plotted as columns
 DELTA = 0.1

@@ -94,7 +94,7 @@ class HTRPO_Learner(Base):
         self.actor = actor
         self.critic = critic
 
-        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=5e-4)
 
         self.steps = 0
         self.to(self.dtype).to(self.device)
@@ -345,11 +345,12 @@ class HTRPO_Learner(Base):
 
                 # Σ_τ ∏_{k=0}^{t} π_θ̃(aₖ|sₖ,g') / π_θ̃(aₖ|sₖ,g)
                 ratio_sum = sum(ep_cum_ratios[i][t] for i in valid)
+                num_valid = len(valid)
 
                 for i in valid:
-                    cum_is_ratios[episodes[i][t]] = ep_cum_ratios[i][t] / (
-                        ratio_sum + 1e-8
-                    )
+                    cum_is_ratios[episodes[i][t]] = (
+                        num_valid * ep_cum_ratios[i][t]
+                    ) / (ratio_sum + 1e-8)
 
         return cum_is_ratios.unsqueeze(-1), discount_factors.unsqueeze(-1)
 
@@ -400,8 +401,12 @@ class HTRPO_Learner(Base):
             next_values = torch.zeros_like(values)
             next_values[:-1] = values[1:]
 
-            # Mask out next values where the episode ended
-            next_values[dones.bool()] = 0.0
+            # The return is the TD target
+            boundary_mask = goal_ids[:-1] != goal_ids[1:]
+            next_values[:-1][boundary_mask] = 0.0
+
+            # Mask out next values only for true terminations (truncations should bootstrap)
+            next_values[terminations.bool()] = 0.0
 
             # One-step TD Advantage: r + gamma * V(s') - V(s)
             advantages = rewards + self.gamma * next_values - values

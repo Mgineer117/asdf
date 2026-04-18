@@ -31,10 +31,10 @@ POS_IDX = {
     "fetchpickandplace": [6, 7, 8, -6, -5, -4],
     "fetchslide": [6, 7, 8, -6, -5, -4],
     "pacman": None,
-    "ant": [0],
-    "walker": [0],
-    "hopper": [0],
-    "halfcheetah": [0],
+    "ant": [14],
+    "walker": [9],
+    "hopper": [6],
+    "halfcheetah": [9],
 }
 
 
