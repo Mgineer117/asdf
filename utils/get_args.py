@@ -277,7 +277,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=0.01,
+        default=None,
         help="The maximum allowed KL divergence between the old and new policy. Used for early stopping in PPO or constraint in TRPO.",
     )
     parser.add_argument(

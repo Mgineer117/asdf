@@ -1,4 +1,5 @@
 {
     "learning_rate": 0.01,
-    "num_exp_updates": 5
+    "num_exp_updates": 5,
+    "target_kl": 0.001
 }
