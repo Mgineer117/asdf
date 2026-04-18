@@ -62,7 +62,7 @@ class HTRPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.9,
         device: str = "cpu",
-        num_hindsight_goals: int = 100,
+        num_hindsight_goals: int = 20,
         use_hgf: bool = True,
     ):
         super().__init__(device=device)
@@ -81,8 +81,7 @@ class HTRPO_Learner(Base):
         self.backtrack_coeff = backtrack_coeff
         self.nupdates = nupdates
 
-        # self.target_kl = target_kl
-        self.target_kl = 0.00001
+        self.target_kl = target_kl
 
         self.num_hindsight_goals = num_hindsight_goals
         self.use_hgf = use_hgf
@@ -127,17 +126,24 @@ class HTRPO_Learner(Base):
         else:
             g0_idx = np.random.choice(len(G_v))
             selected_goals.append(G_v[g0_idx])
-            remaining_G_v = np.delete(G_v, g0_idx, axis=0)
 
-            for _ in range(min(num_goals - 1, len(remaining_G_v))):
-                d2s = np.linalg.norm(
-                    remaining_G_v[:, None, :] - np.array(selected_goals)[None, :, :],
-                    axis=2,
-                )
-                min_d2s = np.min(d2s, axis=1)
-                best_idx = np.argmax(min_d2s)
-                selected_goals.append(remaining_G_v[best_idx])
-                remaining_G_v = np.delete(remaining_G_v, best_idx, axis=0)
+            # Incremental farthest-point: O(k*n) instead of O(k^2*n).
+            # Keep a running min-distance from each candidate to the selected set;
+            # update it by taking the min with the distance to the newly added point.
+            alive = np.ones(len(G_v), dtype=bool)
+            alive[g0_idx] = False
+            min_d2s = np.linalg.norm(G_v - G_v[g0_idx], axis=1)
+            min_d2s[g0_idx] = -np.inf
+
+            for _ in range(min(num_goals - 1, int(alive.sum()))):
+                best_idx = int(np.argmax(min_d2s))
+                selected_goals.append(G_v[best_idx])
+                alive[best_idx] = False
+                if not alive.any():
+                    break
+                d_to_new = np.linalg.norm(G_v - G_v[best_idx], axis=1)
+                min_d2s = np.minimum(min_d2s, d_to_new)
+                min_d2s[~alive] = -np.inf
 
             while len(selected_goals) < num_goals:
                 selected_goals.append(
@@ -162,6 +168,8 @@ class HTRPO_Learner(Base):
         """
         achieved_goals = batch["states"][:, self.achieved_goal_idx]
         original_goals = batch["states"][:, self.desired_goal_idx]
+        n_orig = len(batch["states"])
+        state_dim = batch["states"].shape[1]
 
         if self.use_hgf:
             G = self._hindsight_goal_filtering(
@@ -173,70 +181,61 @@ class HTRPO_Learner(Base):
             )
             G = achieved_goals[indices]
 
-        n_orig = len(batch["states"])
-        augmented_batches = {k: [batch[k]] for k in batch.keys()}
-        goal_ids_list = [np.zeros(n_orig, dtype=np.int64)]  # goal_id = 0 for original
+        num_goals = len(G)
+        total_n = (1 + num_goals) * n_orig
 
-        # Pre-compute episode boundaries so we can truncate early-terminating virtual episodes
-        orig_dones = np.logical_or(batch["terminations"], batch["truncations"]).astype(
-            bool
+        # ── Pre-allocate and seed with original data ───────────────────────
+        result: dict[str, np.ndarray] = {}
+        for k, v in batch.items():
+            arr = np.empty((total_n,) + v.shape[1:], dtype=v.dtype)
+            arr[:n_orig] = v
+            result[k] = arr
+
+        # ── Hindsight states: tile then overwrite desired-goal slice ───────
+        # Shape: (num_goals, n_orig, state_dim) — no Python loop needed.
+        hs_states = np.tile(batch["states"], (num_goals, 1)).reshape(
+            num_goals, n_orig, state_dim
         )
-        ep_ends = np.where(orig_dones)[0]
-        ep_starts = []
-        ep_ends_clean = []
-        start_idx = 0
-        for end_idx in ep_ends:
-            ep_starts.append(start_idx)
-            ep_ends_clean.append(end_idx)
-            start_idx = end_idx + 1
-        if start_idx < n_orig:
-            ep_starts.append(start_idx)
-            ep_ends_clean.append(n_orig - 1)
+        hs_states[:, :, self.desired_goal_idx] = G[:, np.newaxis, :]
+        result["states"][n_orig:] = hs_states.reshape(num_goals * n_orig, state_dim)
 
-        for g_idx, g_prime in enumerate(G):
-            hs_batch = {k: np.copy(v) for k, v in batch.items()}
-            hs_batch["states"][:, self.desired_goal_idx] = g_prime
+        # ── Hindsight rewards: vectorised over all goals at once ───────────
+        # dists: (num_goals, n_orig)
+        dists = np.linalg.norm(
+            achieved_goals[np.newaxis, :, :] - G[:, np.newaxis, :], axis=2
+        )
+        reached = dists < self.distance_threshold  # (num_goals, n_orig)
+        hs_rewards = reached.ravel().astype(batch["rewards"].dtype)
+        if batch["rewards"].ndim > 1:
+            hs_rewards = hs_rewards.reshape(num_goals * n_orig, *batch["rewards"].shape[1:])
+        result["rewards"][n_orig:] = hs_rewards
 
-            current_achieved = hs_batch["states"][:, self.achieved_goal_idx]
-            dists = np.linalg.norm(current_achieved - g_prime, axis=1)
-            reached_mask = dists < self.distance_threshold
+        # ── Hindsight terminations ─────────────────────────────────────────
+        if self.env_name not in ["fetchreach", "fetchpush"] and "terminations" in batch:
+            # Early-termination envs: reaching the virtual goal ends the episode.
+            orig_terms = batch["terminations"].astype(bool).ravel()  # (n_orig,)
+            new_terms = (orig_terms[np.newaxis, :] | reached).ravel()  # (num_goals*n_orig,)
+            hs_terms = new_terms.astype(batch["terminations"].dtype)
+            if batch["terminations"].ndim > 1:
+                hs_terms = hs_terms.reshape(num_goals * n_orig, *batch["terminations"].shape[1:])
+            result["terminations"][n_orig:] = hs_terms
+        else:
+            # Fixed-horizon envs: terminations unchanged across goals.
+            v = batch["terminations"]
+            result["terminations"][n_orig:] = np.tile(v, (num_goals,) + (1,) * (v.ndim - 1))
 
-            hs_batch["rewards"][:] = 0.0
-            hs_batch["rewards"][reached_mask] = 1.0
+        # ── All other fields are identical across goal groups ──────────────
+        for k in batch:
+            if k in ("states", "rewards", "terminations"):
+                continue
+            v = batch[k]
+            result[k][n_orig:] = np.tile(v, (num_goals,) + (1,) * (v.ndim - 1))
 
-            if self.env_name in ["fetchreach", "fetchpush"]:
-                # 1. FIXED HORIZON ENVS (Fetch)
-                # Do NOT alter truncations or terminations. The episode boundaries
-                # (T=50 timeouts) are already physically recorded in the buffer.
-                hs_batch["rewards"][:] = 0.0
-                hs_batch["rewards"][reached_mask] = 1.0
+        # ── Goal-group IDs ─────────────────────────────────────────────────
+        goal_ids = np.zeros(total_n, dtype=np.int64)
+        goal_ids[n_orig:] = np.repeat(np.arange(1, num_goals + 1), n_orig)
+        result["hs_goal_ids"] = goal_ids
 
-            else:
-                # 2. EARLY TERMINATION ENVS (Maze, etc.)
-                # If the environment physically halts upon success, reaching the
-                # virtual goal means the episode is technically over.
-                hs_batch["rewards"][:] = 0.0
-                hs_batch["rewards"][reached_mask] = 1.0
-
-                # # Use logical_or so you don't delete any existing terminations
-                # # that were already in the rollout buffer.
-                # if "terminations" in hs_batch:
-                #     current_terms = hs_batch["terminations"].astype(bool)
-                #     new_terms = current_terms | reached_mask
-                #     hs_batch["terminations"] = new_terms.astype(np.float32)
-                # Use logical_or so you don't delete any existing terminations
-                # that were already in the rollout buffer.
-                if "terminations" in hs_batch:
-                    current_terms = hs_batch["terminations"].astype(bool)
-                    new_terms = current_terms | reached_mask
-                    hs_batch["terminations"] = new_terms.astype(np.float32)
-
-            for k in batch.keys():
-                augmented_batches[k].append(hs_batch[k])
-            goal_ids_list.append(np.full(n_orig, g_idx + 1, dtype=np.int64))
-
-        result = {k: np.concatenate(v, axis=0) for k, v in augmented_batches.items()}
-        result["hs_goal_ids"] = np.concatenate(goal_ids_list, axis=0)
         return result
 
     def _compute_wis_and_discounts(
@@ -298,54 +297,51 @@ class HTRPO_Learner(Base):
             gid_mask = goal_ids == gid
             indices = gid_mask.nonzero(as_tuple=True)[0]  # ordered global positions
 
-            # ── 2. Split into episodes using done flags ────────────────────────
-            #    Works for variable-length episodes: the window between two
-            #    consecutive done=1 flags is one episode.  A trailing window
-            #    that never received done=1 is kept as a truncated episode.
-            episodes: list[torch.Tensor] = []
-            ep_start = 0
-            for local_i in range(len(indices)):
-                if dones[indices[local_i]]:
-                    episodes.append(indices[ep_start : local_i + 1])
-                    ep_start = local_i + 1
-            if ep_start < len(indices):  # truncated final episode
-                episodes.append(indices[ep_start:])
+            # ── 2. Find episode boundaries and lengths ─────────────────────────
+            gid_dones = dones[indices]
+            ep_ends = gid_dones.nonzero(as_tuple=True)[0] + 1
+            if len(ep_ends) == 0 or ep_ends[-1] != len(indices):
+                ep_ends = torch.cat(
+                    [
+                        ep_ends,
+                        torch.tensor([len(indices)], dtype=torch.long, device=device),
+                    ]
+                )
+
+            ep_lengths = ep_ends.clone()
+            ep_lengths[1:] = ep_ends[1:] - ep_ends[:-1]
 
             # ── 3. Discount factors: γ^t, t = step index within episode ───────
-            #    Computed per goal group so that envs where hindsight relabelling
-            #    changes episode length (non-fetch) still get the right γ^t.
-            for ep_idx in episodes:
-                ep_len = len(ep_idx)
-                t_vals = torch.arange(ep_len, dtype=dtype, device=device)
-                discount_factors[ep_idx] = self.gamma**t_vals
+            max_len = ep_lengths.max().item()
+            seq_range = (
+                torch.arange(max_len, device=device)
+                .unsqueeze(0)
+                .expand(len(ep_lengths), max_len)
+            )
+            mask = seq_range < ep_lengths.unsqueeze(1)
+
+            t_vals = seq_range[mask]
+            discount_factors[indices] = self.gamma ** t_vals.to(dtype)
 
             # ── 4. Original data: leave IS weight = 1 ─────────────────────────
             if gid == 0:
                 continue
 
-            # ── 5. Cumulative IS ratios per episode ───────────────────────────
-            #    ep_cum_ratios[i][t] = ∏_{k=0}^{t} step_is_ratios  for episode i
-            ep_cum_ratios: list[torch.Tensor] = [
-                torch.cumprod(step_is_ratios[ep_idx], dim=0) for ep_idx in episodes
-            ]
+            # ── 5. Cumulative IS ratios per episode (Vectorized) ──────────────
+            gid_step_ratios = step_is_ratios[indices]
+            ep_step_ratios = torch.split(gid_step_ratios, ep_lengths.tolist())
+            padded_step_ratios = torch.nn.utils.rnn.pad_sequence(
+                ep_step_ratios, batch_first=True, padding_value=1.0
+            )
+
+            padded_cum_ratios = torch.cumprod(padded_step_ratios, dim=1)
 
             # ── 6. WIS normalisation: divide by sum across episodes at each t ─
-            #    Only episodes that reach position t contribute to the denominator,
-            #    which correctly handles variable-length episodes without padding.
-            max_ep_len = max(len(ep) for ep in episodes)
-            for t in range(max_ep_len):
-                # Indices into `episodes` / `ep_cum_ratios` that reach position t
-                valid = [i for i, ep in enumerate(episodes) if len(ep) > t]
-                if not valid:
-                    continue
+            padded_cum_ratios_valid = padded_cum_ratios * mask.to(dtype)
+            ratio_sums = padded_cum_ratios_valid.sum(dim=0, keepdim=True)
 
-                # Σ_τ ∏_{k=0}^{t} π_θ̃(aₖ|sₖ,g') / π_θ̃(aₖ|sₖ,g)
-                ratio_sum = sum(ep_cum_ratios[i][t] for i in valid)
-
-                for i in valid:
-                    cum_is_ratios[episodes[i][t]] = ep_cum_ratios[i][t] / (
-                        ratio_sum + 1e-8
-                    )
+            padded_wis = padded_cum_ratios / (ratio_sums + 1e-8)
+            cum_is_ratios[indices] = padded_wis[mask]
 
         return cum_is_ratios.unsqueeze(-1), discount_factors.unsqueeze(-1)
 
