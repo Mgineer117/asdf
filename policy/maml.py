@@ -137,11 +137,13 @@ class MAML_Learner(Base):
             actions = self.preprocess_state(batch["actions"])
             rewards = self.preprocess_state(batch["rewards"])
             terminations = self.preprocess_state(batch["terminations"])
+            truncations = self.preprocess_state(batch["truncations"])
             with torch.no_grad():
                 values = self.critic(states)
                 advantages, returns = estimate_advantages(
                     rewards,
                     terminations,
+                    truncations,
                     values,
                     gamma=self.gamma,
                     gae=self.gae,

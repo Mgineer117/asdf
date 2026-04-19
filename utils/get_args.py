@@ -306,6 +306,11 @@ def get_args():
         help="If set, the environment will be rendered visually during training/evaluation (slows down training).",
     )
     parser.add_argument(
+        "--anneal-kl",
+        action="store_true",
+        help="If set, the target KL divergence will be annealed over training.",
+    )
+    parser.add_argument(
         "--gpu-idx",
         type=int,
         default=0,

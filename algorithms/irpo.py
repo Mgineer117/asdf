@@ -91,6 +91,7 @@ class IRPO_Algorithm(nn.Module):
             gamma=self.args.gamma,
             gae=self.args.gae,
             device=self.args.device,
+            anneal_kl=self.args.anneal_kl,
         )
 
         if hasattr(self.env, "get_grid"):

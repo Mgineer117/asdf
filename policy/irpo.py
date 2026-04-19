@@ -35,6 +35,7 @@ class IRPO_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.95,
+        anneal_kl: bool = True,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -58,8 +59,10 @@ class IRPO_Learner(Base):
         self.gamma = gamma
         self.gae = gae
         self.target_kl = target_kl  # Constraint for TRPO
+        self.init_target_kl = target_kl
         # self.base_target_kl = base_target_kl
         self.l2_reg = l2_reg
+        self.anneal_kl = anneal_kl
 
         # Neural Networks
         self.actor = actor  # The "Base" policy
@@ -96,6 +99,10 @@ class IRPO_Learner(Base):
 
         self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
+
+    def anneal_target_kl(self, learning_progress: float):
+        # Optional: Anneal target KL over time (e.g., linearly decay)
+        self.target_kl = self.init_target_kl * (1.0 - learning_progress) + 1e-5
 
     def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
@@ -280,6 +287,8 @@ class IRPO_Learner(Base):
         self.wall_clock_time += total_n_irpo_time
 
         kl_diff = self.measure_kl_among_exp_policies(init_batch)
+        if self.anneal_kl:
+            self.anneal_target_kl(learning_progress)
 
         # Dictionary construction for logger
         loss_dict = self.average_dict_values(loss_dict_list)

@@ -214,7 +214,6 @@ class PSNE_Learner(Base):
         loss_dict = {
             f"{self.name}/loss/loss": loss.item(),
             f"{self.name}/loss/actor_loss": actor_loss.item(),
-            f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/loss/value_loss": value_loss.item(),
             f"{self.name}/loss/l2_loss": l2_loss.item(),
             f"{self.name}/grad/actor": torch.linalg.norm(grad_flat).item(),

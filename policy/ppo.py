@@ -81,7 +81,7 @@ class PPO_Learner(Base):
         self.train()
 
         # Collect initial data with the base policy
-        batch, sample_time = sampler.collect_samples(env, self.actor, seed)
+        batch, sample_time = sampler.collect_samples(env, self, seed)
 
         update_time = time.time()
 

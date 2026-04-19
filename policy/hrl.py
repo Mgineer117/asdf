@@ -37,10 +37,7 @@ class HRL_Learner(Base):
         # constants
         self.name = "HRL"
         self.device = device
-
-        self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
-        self.is_discrete = is_discrete
 
         self.num_minibatch = num_minibatch
         self.minibatch_size = minibatch_size
