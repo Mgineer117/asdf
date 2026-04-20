@@ -49,7 +49,7 @@ class AtariFeatureNet(nn.Module):
 
 
 class BaseIntRewardFunctions(nn.Module):
-    def __init__(self, logger, writer, args):
+    def __init__(self, logger, writer, args, **kwargs):
         super(BaseIntRewardFunctions, self).__init__()
 
         self.extractor_env = get_env(args)
@@ -114,6 +114,55 @@ class BaseIntRewardFunctions(nn.Module):
             )
         except Exception as e:
             print(f"[WARNING] Failed to generate heatmaps: {e}")
+
+
+class ArbitraryIntRewardFunctions(BaseIntRewardFunctions):
+    def __init__(self, target: list | float | None, **kwargs):
+        super(ArbitraryIntRewardFunctions, self).__init__(**kwargs)
+
+        # Save input shape to determine if we are working with Images or Vectors
+        self.pos_idx = self.args.pos_idx
+        self.target = target
+
+        if self.args.num_options > 1:
+            print(
+                f"[WARNING] ArbitraryIntRewardFunctions is designed for a single reward function. Ignoring extra options and using only the first one."
+            )
+
+    def forward(
+        self, states: np.ndarray | torch.Tensor, next_states: np.ndarray | torch.Tensor
+    ):
+        states, next_states = self.preprocess_inputs(states, next_states)
+
+        states = states[:, self.pos_idx]
+        # next_states = next_states[:, self.pos_idx]
+        # delta = next_states - states
+
+        # if target is list measure the euclidean norm distance to the target vector, if target is a scalar, measure the distance to the target scalar, if target is None, just return the state values as rewards (maximize)
+        # if target is scaler take norm first and then apply the formula, if target is vector apply the formula elementwise and then sum across the reward dimensions
+        # if target is None then just give the norm of states as rewards (maximize)
+        if self.target is None:
+            intrinsic_rewards = 1 / (1 + torch.norm(states, p=2, dim=1, keepdim=True))
+        elif isinstance(self.target, (float, int)):
+            state_norms = torch.norm(states, p=2, dim=1, keepdim=True)
+            intrinsic_rewards = 1 / (1 + torch.abs(state_norms - self.target))
+        elif isinstance(self.target, list):
+            target_tensor = torch.tensor(
+                self.target, device=states.device, dtype=states.dtype
+            )
+            intrinsic_rewards = torch.sum(
+                1 / (1 + torch.abs(states - target_tensor)), dim=1, keepdim=True
+            )
+        else:
+            raise ValueError(f"Invalid target type: {type(self.target)}")
+
+        return intrinsic_rewards
+
+    def learn(self, **kwargs):
+        pass
+
+    def define_reward_model(self):
+        pass
 
 
 class RandomIntRewardFunctions(BaseIntRewardFunctions):

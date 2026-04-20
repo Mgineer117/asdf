@@ -109,7 +109,7 @@ def get_args():
     parser.add_argument(
         "--beta",
         type=float,
-        default=0.99,
+        default=0.95,
         help="The learning rate for the Actor network optimizer (used in standard baselines like PPO).",
     )
     parser.add_argument(

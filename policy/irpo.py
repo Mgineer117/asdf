@@ -140,6 +140,9 @@ class IRPO_Learner(Base):
         return grads
 
     def measure_kl_among_exp_policies(self, batch: dict):
+        if self.num_options <= 1:
+            return 0.0
+
         # for each policy
         kl_div_list = []
         for i in range(self.num_options):
@@ -219,6 +222,10 @@ class IRPO_Learner(Base):
                 batches, current_sample_time = sampler.collect_samples(
                     env, actors, seed
                 )
+                if isinstance(batches, dict):
+                    # for num_options = 1 case, sampler may return a single batch instead of a list
+                    batches = [batches]
+
                 total_sample_time += current_sample_time
 
                 # add intrinsic reward to batches
@@ -254,7 +261,7 @@ class IRPO_Learner(Base):
         temperature = max(1e-8, 1.0 - 5.0 * learning_progress)
 
         # If temperature is at minimum, we only need the greedy gradient (no aggregation)
-        if temperature <= 1e-8:
+        if temperature <= 1e-8 or self.num_options == 1:
             gradients = self.backprop(policy_dict, gradient_dict, greedy_idx)
         else:
             # weights = F.softmax(self.perf_gains / temperature, dim=0)

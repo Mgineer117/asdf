@@ -3,7 +3,11 @@ import torch.nn as nn
 from policy.irpo import IRPO_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
-from utils.intrinsic_rewards import ALLOIntRewardFunctions, RandomIntRewardFunctions
+from utils.intrinsic_rewards import (
+    ALLOIntRewardFunctions,
+    ArbitraryIntRewardFunctions,
+    RandomIntRewardFunctions,
+)
 from utils.sampler import OnlineSampler
 
 
@@ -21,15 +25,15 @@ class IRPO_Algorithm(nn.Module):
             fn = ALLOIntRewardFunctions
         elif self.args.int_reward_type == "random":
             fn = RandomIntRewardFunctions
+        elif self.args.int_reward_type == "arbitrary":
+            fn = ArbitraryIntRewardFunctions
         else:
             NotImplementedError(
                 f"Intrinsic reward type {self.args.int_reward_type} not implemented."
             )
 
         self.intrinsic_reward_fn = fn(
-            logger=logger,
-            writer=writer,
-            args=args,
+            logger=logger, writer=writer, args=args, target=5.0
         )
 
         self.current_timesteps = self.intrinsic_reward_fn.current_timesteps
