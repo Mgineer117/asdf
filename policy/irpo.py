@@ -144,8 +144,13 @@ class IRPO_Learner(Base):
             iter_idx = f"{option_idx}_{j}"
             Hv = grad(
                 gradient_dict[iter_idx],
-                policy_dict[iter_idx].parameters(),
+                tuple(policy_dict[iter_idx].parameters()),
                 grad_outputs=grads,
+                allow_unused=True,
+            )
+            Hv = tuple(
+                h if h is not None else torch.zeros_like(p)
+                for p, h in zip(policy_dict[iter_idx].parameters(), Hv)
             )
             grads = tuple(g - self.lr * h for g, h in zip(grads, Hv))
         return grads
@@ -467,7 +472,11 @@ class IRPO_Learner(Base):
 
         # Calculate Gradients with create_graph=True
         gradients = torch.autograd.grad(
-            actor_loss, actor.parameters(), create_graph=True
+            actor_loss, tuple(actor.parameters()), create_graph=True, allow_unused=True
+        )
+        gradients = tuple(
+            g if g is not None else torch.zeros_like(p)
+            for p, g in zip(actor.parameters(), gradients)
         )
         # gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
@@ -525,6 +534,7 @@ class IRPO_Learner(Base):
 
             # Compute step size scaling (Lagrange multiplier)
             sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
+            sAs = torch.clamp(sAs, min=1e-8)
             lm = torch.sqrt(sAs / self.target_kl)
             full_step = step_dir / (lm + 1e-8)
 
