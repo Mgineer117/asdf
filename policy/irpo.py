@@ -56,7 +56,9 @@ class IRPO_Learner(Base):
         # self.find_lr = find_lr
         self.critic_lr = critic_lr
         self.noise_std = noise_std
-        self.num_sampled_options = num_sampled_options if num_sampled_options is not None else self.num_options
+        self.num_sampled_options = (
+            num_sampled_options if num_sampled_options is not None else self.num_options
+        )
 
         # Hyperparameters
         self.entropy_scaler = entropy_scaler
@@ -83,12 +85,10 @@ class IRPO_Learner(Base):
 
         # Optimizers for the critics
         self.ext_critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=0.0003)
             torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
             for critic in self.ext_critics
         ]
         self.int_critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=0.0003)
             torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
             for critic in self.int_critics
         ]
@@ -203,7 +203,9 @@ class IRPO_Learner(Base):
 
         # --- Thompson Sampling to select active options ---
         if self.num_sampled_options < self.num_options:
-            sampled_returns = self.perf_gains + torch.randn_like(self.perf_gains) * self.noise_std
+            sampled_returns = (
+                self.perf_gains + torch.randn_like(self.perf_gains) * self.noise_std
+            )
             _, top_k_indices = torch.topk(sampled_returns, self.num_sampled_options)
             active_indices = top_k_indices.tolist()
         else:
@@ -258,7 +260,10 @@ class IRPO_Learner(Base):
                 actor_idx, future_actor_idx = actor_indices[i], future_actor_indices[i]
             for idx, i in enumerate(active_indices):
                 actor, batch = actors[idx], batches[idx]
-                actor_idx, future_actor_idx = actor_indices[idx], future_actor_indices[idx]
+                actor_idx, future_actor_idx = (
+                    actor_indices[idx],
+                    future_actor_indices[idx],
+                )
 
                 # Perform Gradient Descent Step (Exploratory Update)
                 exp_dict = self.learn_exploratory_policy(actor, batch, i, flag)
@@ -314,7 +319,9 @@ class IRPO_Learner(Base):
             elif self.aggregation_method == "softmax":
                 weights = F.softmax(logits / temperature, dim=0)
             else:
-                raise ValueError(f"Invalid aggregation method: {self.aggregation_method}")
+                raise ValueError(
+                    f"Invalid aggregation method: {self.aggregation_method}"
+                )
 
             outer_gradients = [
                 self.backprop(policy_dict, gradient_dict, i)
