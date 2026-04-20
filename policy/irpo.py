@@ -30,7 +30,6 @@ class IRPO_Learner(Base):
         base_policy_update_type: str = "trpo",
         lr: float = 3e-4,
         critic_lr: float = 3e-4,
-        num_sampled_options: int = None,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
         # base_target_kl: float = 0.001,
@@ -56,9 +55,6 @@ class IRPO_Learner(Base):
         # self.find_lr = find_lr
         self.critic_lr = critic_lr
         self.noise_std = noise_std
-        self.num_sampled_options = (
-            num_sampled_options if num_sampled_options is not None else self.num_options
-        )
 
         # Hyperparameters
         self.entropy_scaler = entropy_scaler
@@ -201,15 +197,8 @@ class IRPO_Learner(Base):
         total_timesteps, total_sample_time = 0, 0
         total_exp_update_time, total_backprop_time, total_base_update_time = 0, 0, 0
 
-        # --- Thompson Sampling to select active options ---
-        if self.num_sampled_options < self.num_options:
-            sampled_returns = (
-                self.perf_gains + torch.randn_like(self.perf_gains) * self.noise_std
-            )
-            _, top_k_indices = torch.topk(sampled_returns, self.num_sampled_options)
-            active_indices = top_k_indices.tolist()
-        else:
-            active_indices = self.policy_indices
+        # --- Select active options ---
+        active_indices = self.policy_indices
 
         policy_dict, gradient_dict = self.init_exp_policies(), {}
 
