@@ -281,6 +281,7 @@ class IRPO_Learner(Base):
         else:
             active_gains = self.perf_gains[active_indices]
             # REVERSE SOFTMAX: Amplify low return option idx (Lower bound maximization)
+            # logits = -active_gains
             logits = -active_gains
             weights = F.softmax(logits / temperature, dim=0)
 
