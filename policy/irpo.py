@@ -27,7 +27,7 @@ class IRPO_Learner(Base):
         noise_std: float,
         # find_lr: bool,
         num_exp_updates: int,
-        base_policy_update_type: str = "sgd",
+        base_policy_update_type: str = "trpo",
         lr: float = 3e-4,
         critic_lr: float = 3e-4,
         num_sampled_options: int = None,
@@ -56,9 +56,6 @@ class IRPO_Learner(Base):
         # self.find_lr = find_lr
         self.critic_lr = critic_lr
         self.noise_std = noise_std
-        self.num_sampled_options = (
-            num_sampled_options if num_sampled_options is not None else self.num_options
-        )
 
         # Hyperparameters
         self.entropy_scaler = entropy_scaler
@@ -74,6 +71,12 @@ class IRPO_Learner(Base):
         self.actor = actor  # The "Base" policy
         self.intrinsic_reward_fn = intrinsic_reward_fn
         self.num_options = self.intrinsic_reward_fn.num_rewards
+
+        self.num_sampled_options = (
+            num_sampled_options
+            if num_sampled_options is not None
+            else self.num_options // 3
+        )
 
         # Critics
         self.ext_critics = nn.ModuleList(
@@ -268,11 +271,7 @@ class IRPO_Learner(Base):
             gradients = self.backprop(policy_dict, gradient_dict, best_local_idx)
         else:
             active_gains = self.perf_gains[active_indices]
-            if self.noise_std > 0.0:
-                dist = Normal(loc=active_gains, scale=self.noise_std)
-                logits = dist.sample()
-            else:
-                logits = active_gains
+            logits = active_gains
 
             if self.aggregation_method == "argmax":
                 weights = torch.zeros_like(logits)
