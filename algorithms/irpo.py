@@ -78,11 +78,9 @@ class IRPO_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        env_name, _, _ = self.args.env_name.partition("-")
         self.policy = IRPO_Learner(
             actor=actor,
             critic=critic,
-            env_name=env_name,
             beta=self.args.beta,
             # find_lr=self.args.find_lr,
             intrinsic_reward_fn=self.intrinsic_reward_fn,
