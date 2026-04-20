@@ -21,7 +21,6 @@ class IRPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
-        env_name: str,
         beta: float,
         intrinsic_reward_fn: BaseIntRewardFunctions,
         aggregation_method: str,
