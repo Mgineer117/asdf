@@ -79,11 +79,11 @@ class IRPO_Learner(Base):
 
         # Optimizers for the critics
         self.ext_critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=self.lr)
+            torch.optim.Adam(critic.parameters(), lr=0.0003)
             for critic in self.ext_critics
         ]
         self.int_critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=self.lr)
+            torch.optim.Adam(critic.parameters(), lr=0.0003)
             for critic in self.int_critics
         ]
 
@@ -377,7 +377,8 @@ class IRPO_Learner(Base):
                 terminations,
                 truncations,
                 int_values,
-                gamma=self.gamma,
+                # gamma=self.gamma,
+                gamma=1.0,
                 gae=self.gae,
             )
 
