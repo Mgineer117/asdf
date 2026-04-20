@@ -433,8 +433,6 @@ class IRPO_Learner(Base):
                 terminations,
                 truncations,
                 int_values,
-                # gamma=self.gamma,
-                gamma=1.0,
                 gamma=self.gamma,
                 gae=self.gae,
             )
