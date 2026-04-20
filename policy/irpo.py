@@ -21,6 +21,7 @@ class IRPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        env_name: str,
         beta: float,
         intrinsic_reward_fn: BaseIntRewardFunctions,
         aggregation_method: str,
@@ -32,6 +33,7 @@ class IRPO_Learner(Base):
         critic_lr: float = 3e-4,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
+        lock_threshold: float = 0.66,
         # base_target_kl: float = 0.001,
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
@@ -62,6 +64,8 @@ class IRPO_Learner(Base):
         self.gae = gae
         self.target_kl = target_kl  # Constraint for TRPO
         self.init_target_kl = target_kl
+        self.lock_threshold = lock_threshold
+        self.locked_option_idx = None
         # self.base_target_kl = base_target_kl
         self.l2_reg = l2_reg
         self.anneal_kl = anneal_kl
@@ -109,7 +113,12 @@ class IRPO_Learner(Base):
     def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
 
-        actor = self.final_exp_policies[torch.argmax(self.perf_gains)]
+        best_idx = (
+            self.locked_option_idx
+            if self.locked_option_idx is not None
+            else torch.argmax(self.perf_gains).item()
+        )
+        actor = self.final_exp_policies[best_idx]
         a, metaData = actor(state, deterministic=deterministic)
 
         return a, {
@@ -167,25 +176,6 @@ class IRPO_Learner(Base):
             kl_div_list.append(sum(kl_divs) / len(kl_divs))
         return sum(kl_div_list) / len(kl_div_list)
 
-    def get_weights(self, temperature=1.0, noise_std=0.0):
-        if noise_std > 0.0:
-            dist = Normal(loc=self.perf_gains, scale=noise_std)
-            logits = dist.sample()
-        else:
-            logits = self.perf_gains
-
-        if self.aggregation_method == "argmax":
-            weights = torch.zeros_like(logits)
-            weights[torch.argmax(logits)] = 1.0
-        elif self.aggregation_method == "uniform":
-            weights = torch.ones_like(self.perf_gains) / self.perf_gains.shape[0]
-        elif self.aggregation_method == "softmax":
-            weights = F.softmax(logits / temperature, dim=0)
-        else:
-            raise ValueError(f"Invalid aggregation method: {self.aggregation_method}")
-
-        return weights
-
     def learn(
         self, env, sampler: OnlineSampler, seed: int, learning_progress: float, **kwargs
     ):
@@ -197,8 +187,15 @@ class IRPO_Learner(Base):
         total_timesteps, total_sample_time = 0, 0
         total_exp_update_time, total_backprop_time, total_base_update_time = 0, 0, 0
 
+        # --- Option Lock-in (Late stage fine-tuning) ---
+        if learning_progress >= self.lock_threshold and self.locked_option_idx is None:
+            self.locked_option_idx = torch.argmax(self.perf_gains).item()
+
         # --- Select active options ---
-        active_indices = self.policy_indices
+        if self.locked_option_idx is not None:
+            active_indices = [self.locked_option_idx]
+        else:
+            active_indices = self.policy_indices
 
         policy_dict, gradient_dict = self.init_exp_policies(), {}
 
@@ -213,8 +210,6 @@ class IRPO_Learner(Base):
         # EXPLORATORY PHASE: Iterate over each intrinsic reward type
         for j in range(self.num_exp_updates):
             flag = j == self.num_exp_updates - 1
-            actor_indices = [f"{i}_{j}" for i in self.policy_indices]
-            future_actor_indices = [f"{i}_{j+1}" for i in self.policy_indices]
             actor_indices = [f"{i}_{j}" for i in active_indices]
             future_actor_indices = [f"{i}_{j+1}" for i in active_indices]
             actors = [policy_dict[actor_idx] for actor_idx in actor_indices]
@@ -223,7 +218,6 @@ class IRPO_Learner(Base):
                 init_batch["int_rewards"] = self.intrinsic_reward_fn(
                     init_batch["states"], init_batch["next_states"]
                 )
-                batches = [init_batch for _ in self.policy_indices]
                 batches = [init_batch for _ in active_indices]
                 timesteps = 0
             else:
@@ -244,9 +238,6 @@ class IRPO_Learner(Base):
                 timesteps = sum(batch["states"].shape[0] for batch in batches)
                 total_timesteps += timesteps
 
-            for i in range(len(self.policy_indices)):
-                actor, batch = actors[i], batches[i]
-                actor_idx, future_actor_idx = actor_indices[i], future_actor_indices[i]
             for idx, i in enumerate(active_indices):
                 actor, batch = actors[idx], batches[idx]
                 actor_idx, future_actor_idx = (
@@ -263,10 +254,6 @@ class IRPO_Learner(Base):
                 # lr_dict[actor_idx] = exp_dict["used_lr"]
                 total_exp_update_time += exp_dict["update_time"]
 
-                self.perf_gains[i] = (
-                    self.beta * self.perf_gains[i]
-                    + (1 - self.beta) * exp_dict["ext_return"]
-                )
                 # Update performance gains only on the fully adapted policy
                 if flag:
                     self.perf_gains[i] = (
@@ -278,44 +265,35 @@ class IRPO_Learner(Base):
         t_backprop_start = time.time()
 
         greedy_idx = torch.argmax(self.perf_gains).item()
-        temperature = max(1e-8, 1.0 - 5.0 * learning_progress)
-        temperature = max(1e-8, 1.0 - learning_progress)
+        if self.locked_option_idx is not None:
+            temperature = 1e-8
+        else:
+            temperature = max(1e-8, 1.0 - (learning_progress / self.lock_threshold))
 
-        # If temperature is at minimum, we only need the greedy gradient (no aggregation)
-        if temperature <= 1e-8 or self.num_options == 1:
-            gradients = self.backprop(policy_dict, gradient_dict, greedy_idx)
         if temperature <= 1e-8 or len(active_indices) == 1:
             active_gains = self.perf_gains[active_indices]
             best_local_idx = active_indices[torch.argmax(active_gains).item()]
             gradients = self.backprop(policy_dict, gradient_dict, best_local_idx)
         else:
-            # weights = F.softmax(self.perf_gains / temperature, dim=0)
-            weights = self.get_weights(
-                temperature=temperature, noise_std=self.noise_std
-            )
             active_gains = self.perf_gains[active_indices]
-            if self.noise_std > 0.0:
-                dist = Normal(loc=active_gains, scale=self.noise_std)
-                logits = dist.sample()
-            else:
-                logits = active_gains
+            # REVERSE SOFTMAX: Amplify low return option idx (Lower bound maximization)
+            logits = -active_gains
+            weights = F.softmax(logits / temperature, dim=0)
 
-            if self.aggregation_method == "argmax":
-                weights = torch.zeros_like(logits)
-                weights[torch.argmax(logits)] = 1.0
-            elif self.aggregation_method == "uniform":
-                weights = torch.ones_like(logits) / logits.shape[0]
-            elif self.aggregation_method == "softmax":
-                weights = F.softmax(logits / temperature, dim=0)
-            else:
-                raise ValueError(
-                    f"Invalid aggregation method: {self.aggregation_method}"
-                )
+            # if self.aggregation_method == "argmax":
+            #     weights = torch.zeros_like(logits)
+            #     weights[torch.argmax(logits)] = 1.0
+            # elif self.aggregation_method == "uniform":
+            #     weights = torch.ones_like(logits) / logits.shape[0]
+            # elif self.aggregation_method == "softmax":
+            #     weights = F.softmax(logits / temperature, dim=0)
+            # else:
+            #     raise ValueError(
+            #         f"Invalid aggregation method: {self.aggregation_method}"
+            #     )
 
             outer_gradients = [
-                self.backprop(policy_dict, gradient_dict, i)
-                for i in self.policy_indices
-                for i in active_indices
+                self.backprop(policy_dict, gradient_dict, i) for i in active_indices
             ]
 
             outer_gradients_transposed = zip(*outer_gradients)
@@ -592,7 +570,6 @@ class IRPO_Learner(Base):
         actor_loss = -(logprobs * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 
-        return actor_loss  # - entropy_loss
         return actor_loss - entropy_loss
 
     def critic_loss(
