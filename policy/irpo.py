@@ -14,6 +14,14 @@ from utils.intrinsic_rewards import BaseIntRewardFunctions
 from utils.rl import *
 from utils.sampler import OnlineSampler
 
+NUMBER_OF_GOALS = {
+    "fourrooms": 2,
+    "maze": 3,
+    "pointmaze": 2,
+    "antmaze": 2,
+    "fetchreach": 1,
+}
+
 
 class IRPO_Learner(Base):
 
@@ -21,6 +29,7 @@ class IRPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        env_name: str,
         beta: float,
         intrinsic_reward_fn: BaseIntRewardFunctions,
         aggregation_method: str,
@@ -72,11 +81,7 @@ class IRPO_Learner(Base):
         self.intrinsic_reward_fn = intrinsic_reward_fn
         self.num_options = self.intrinsic_reward_fn.num_rewards
 
-        self.num_sampled_options = (
-            num_sampled_options
-            if num_sampled_options is not None
-            else self.num_options // 3
-        )
+        self.num_sampled_options = NUMBER_OF_GOALS[env_name]
 
         # Critics
         self.ext_critics = nn.ModuleList(
@@ -272,18 +277,19 @@ class IRPO_Learner(Base):
         else:
             active_gains = self.perf_gains[active_indices]
             logits = active_gains
+            weights = F.softmax(logits / temperature, dim=0)
 
-            if self.aggregation_method == "argmax":
-                weights = torch.zeros_like(logits)
-                weights[torch.argmax(logits)] = 1.0
-            elif self.aggregation_method == "uniform":
-                weights = torch.ones_like(logits) / logits.shape[0]
-            elif self.aggregation_method == "softmax":
-                weights = F.softmax(logits / temperature, dim=0)
-            else:
-                raise ValueError(
-                    f"Invalid aggregation method: {self.aggregation_method}"
-                )
+            # if self.aggregation_method == "argmax":
+            #     weights = torch.zeros_like(logits)
+            #     weights[torch.argmax(logits)] = 1.0
+            # elif self.aggregation_method == "uniform":
+            #     weights = torch.ones_like(logits) / logits.shape[0]
+            # elif self.aggregation_method == "softmax":
+            #     weights = F.softmax(logits / temperature, dim=0)
+            # else:
+            #     raise ValueError(
+            #         f"Invalid aggregation method: {self.aggregation_method}"
+            #     )
 
             outer_gradients = [
                 self.backprop(policy_dict, gradient_dict, i) for i in active_indices
