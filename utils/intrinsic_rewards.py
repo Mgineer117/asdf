@@ -13,6 +13,41 @@ from utils.get_envs import get_env
 from utils.sampler import OnlineSampler
 from utils.wrapper import RunningMeanStd
 
+KERNEL_MODES = ("rbf", "laplacian", "cauchy", "cosine")
+
+
+def _apply_kernel(phi_s: torch.Tensor, phi_g: torch.Tensor, mode: str) -> torch.Tensor:
+    """
+    Goal-conditioned diffusion reward R(s,g) ∈ (0,1].
+
+    σ² is estimated per-batch as 2·Var[φ(s)] summed over feature dims
+    (standard bandwidth heuristic; scales automatically with the encoder).
+
+    Modes
+    -----
+    rbf       : exp(-‖φ(s)−φ(g)‖² / 2σ²)           — Gaussian, peaks at 1
+    laplacian : exp(-‖φ(s)−φ(g)‖ / σ)               — heavier tails than RBF
+    cauchy    : 1 / (1 + ‖φ(s)−φ(g)‖² / σ²)         — polynomial decay
+    cosine    : (φ(s)·φ(g) / ‖φ(s)‖‖φ(g)‖ + 1) / 2  — no σ, direction-only
+    """
+    if mode == "cosine":
+        norm_s = phi_s.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        norm_g = phi_g.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        cosine = (phi_s / norm_s * phi_g / norm_g).sum(dim=-1, keepdim=True)
+        return (cosine + 1.0) / 2.0  # shift [-1,1] → [0,1]
+
+    sq_dist = ((phi_s - phi_g) ** 2).sum(dim=-1, keepdim=True)  # (B, 1)
+    sigma2 = 2.0 * phi_s.var(dim=0).sum() + 1e-8  # scalar
+
+    if mode == "rbf":
+        return torch.exp(-sq_dist / (2.0 * sigma2))
+    elif mode == "laplacian":
+        return torch.exp(-sq_dist.sqrt() / sigma2.sqrt())
+    elif mode == "cauchy":
+        return 1.0 / (1.0 + sq_dist / sigma2)
+    else:
+        raise ValueError(f"Unknown kernel mode '{mode}'. Choose from {KERNEL_MODES}.")
+
 
 class AtariFeatureNet(nn.Module):
     """
@@ -294,6 +329,38 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
         )
 
 
+class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
+    def __init__(self, mode: str = "rbf", **kwargs):
+        super(RandomIntRewardFunctionsG, self).__init__(**kwargs)
+
+        self.goal_idx = self.args.goal_idx
+        if self.goal_idx is None:
+            raise ValueError("Goal index not specified.")
+        if mode not in KERNEL_MODES:
+            raise ValueError(
+                f"Unknown kernel mode '{mode}'. Choose from {KERNEL_MODES}."
+            )
+        self.mode = mode
+        # Single combined reward regardless of args.num_options
+        self.num_rewards = 1
+        self.reward_rms = RunningMeanStd(shape=(1,))
+
+    def forward(
+        self, states: np.ndarray | torch.Tensor, next_states: np.ndarray | torch.Tensor
+    ):
+        states, next_states = self.preprocess_inputs(states, next_states)
+
+        goals = states[:, self.goal_idx]  # (B, len(goal_idx))
+        states = states[:, self.args.pos_idx]
+
+        with torch.no_grad():
+            phi_s, _ = self.extractor(states)  # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
+            intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
+
+        return intrinsic_rewards
+
+
 class DRNDIntRewardFunctions(BaseIntRewardFunctions):
     def __init__(self, **kwargs):
         super(DRNDIntRewardFunctions, self).__init__(**kwargs)
@@ -319,6 +386,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         super(ALLOIntRewardFunctions, self).__init__(**kwargs)
 
         self.num_trials = 2_000
+        self.use_diff = kwargs.get("use_diff", False)
 
         self.define_reward_model()
         self.define_eigenvectors()
@@ -332,9 +400,12 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            feature, _ = self.extractor(states)
-            next_feature, _ = self.extractor(next_states)
-            difference = next_feature - feature
+            if self.use_diff:
+                feature, _ = self.extractor(states)
+                next_feature, _ = self.extractor(next_states)
+                difference = next_feature - feature
+            else:
+                difference, _ = self.extractor(states)
 
             # Extract all indices and signs for every 'i'
             indices = [e[0] for e in self.eigenvectors]
@@ -494,3 +565,35 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             torch.save(extractor.state_dict(), model_path)
 
         self.extractor = extractor
+
+
+class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
+    def __init__(self, mode: str = "cosine", **kwargs):
+        super(ALLOIntRewardFunctionG, self).__init__(**kwargs)
+
+        self.goal_idx = self.args.goal_idx
+        if self.goal_idx is None:
+            raise ValueError("Goal index not specified.")
+        if mode not in KERNEL_MODES:
+            raise ValueError(
+                f"Unknown kernel mode '{mode}'. Choose from {KERNEL_MODES}."
+            )
+        self.mode = mode
+        # Single combined reward regardless of args.num_options
+        self.num_rewards = 1
+        self.reward_rms = RunningMeanStd(shape=(1,))
+
+    def forward(
+        self, states: np.ndarray | torch.Tensor, next_states: np.ndarray | torch.Tensor
+    ):
+        states, next_states = self.preprocess_inputs(states, next_states)
+
+        goals = states[:, self.goal_idx]  # (B, len(goal_idx))
+        states = states[:, self.args.pos_idx]
+
+        with torch.no_grad():
+            phi_s, _ = self.extractor(states)  # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
+            intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
+
+        return intrinsic_rewards

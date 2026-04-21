@@ -1,12 +1,12 @@
 import torch.nn as nn
 
-from policy.irpo import IRPO_Learner
+from policy.irpo import IRPO_G_Learner, IRPO_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.intrinsic_rewards import (
-    ALLOIntRewardFunctions,
+    ALLOIntRewardFunctionG,
     ArbitraryIntRewardFunctions,
-    RandomIntRewardFunctions,
+    RandomIntRewardFunctionsG,
 )
 from utils.sampler import OnlineSampler
 
@@ -15,26 +15,35 @@ class IRPO_Algorithm(nn.Module):
     def __init__(self, env, logger, writer, args):
         super(IRPO_Algorithm, self).__init__()
 
-        # === Parameter saving === #
         self.env = env
         self.logger = logger
         self.writer = writer
         self.args = args
 
-        if self.args.int_reward_type == "allo":
-            fn = ALLOIntRewardFunctions
-        elif self.args.int_reward_type == "random":
-            fn = RandomIntRewardFunctions
-        elif self.args.int_reward_type == "arbitrary":
-            fn = ArbitraryIntRewardFunctions
-        else:
-            NotImplementedError(
-                f"Intrinsic reward type {self.args.int_reward_type} not implemented."
-            )
+        mode = getattr(args, "kernel_mode", "cosine")
 
-        self.intrinsic_reward_fn = fn(
-            logger=logger, writer=writer, args=args, target=5.0
-        )
+        if self.args.int_reward_type == "allo":
+            self.intrinsic_reward_fn = ALLOIntRewardFunctionG(
+                logger=logger, writer=writer, args=args, mode=mode
+            )
+            self.goal_conditioned = True
+        elif self.args.int_reward_type == "random":
+            self.intrinsic_reward_fn = RandomIntRewardFunctionsG(
+                logger=logger,
+                writer=writer,
+                args=args,
+                mode=getattr(args, "kernel_mode", "rbf"),
+            )
+            self.goal_conditioned = True
+        elif self.args.int_reward_type == "arbitrary":
+            self.intrinsic_reward_fn = ArbitraryIntRewardFunctions(
+                logger=logger, writer=writer, args=args, target=5.0
+            )
+            self.goal_conditioned = False
+        else:
+            raise NotImplementedError(
+                f"Intrinsic reward type '{self.args.int_reward_type}' not implemented."
+            )
 
         self.current_timesteps = self.intrinsic_reward_fn.current_timesteps
 
@@ -78,25 +87,30 @@ class IRPO_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        self.policy = IRPO_Learner(
+        shared_kwargs = dict(
             actor=actor,
             critic=critic,
             beta=self.args.beta,
-            # find_lr=self.args.find_lr,
             intrinsic_reward_fn=self.intrinsic_reward_fn,
-            aggregation_method=self.args.aggregation_method,
             noise_std=self.args.noise_std,
             num_exp_updates=self.args.num_exp_updates,
             base_policy_update_type=self.args.base_policy_update_type,
             lr=self.args.learning_rate,
             entropy_scaler=self.args.entropy_scaler,
             target_kl=self.args.target_kl,
-            # base_target_kl=self.args.base_target_kl,
             gamma=self.args.gamma,
             gae=self.args.gae,
             device=self.args.device,
             anneal_kl=self.args.anneal_kl,
         )
+
+        if self.goal_conditioned:
+            self.policy = IRPO_G_Learner(**shared_kwargs)
+        else:
+            self.policy = IRPO_Learner(
+                aggregation_method=self.args.aggregation_method,
+                **shared_kwargs,
+            )
 
         if hasattr(self.env, "get_grid"):
             self.policy.actor.grid = self.env.get_grid()

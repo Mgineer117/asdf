@@ -625,3 +625,183 @@ class IRPO_Learner(Base):
         values = critic(states)
         value_loss = self.mse_loss(values, returns)
         return value_loss
+
+
+class IRPO_G_Learner(IRPO_Learner):
+    """
+    Goal-conditioned IRPO: single diffusion-kernel reward, no gradient aggregation.
+
+    Inherits all critic/actor update machinery from IRPO_Learner (num_options=1
+    is enforced by the G reward functions setting num_rewards=1). Only learn()
+    and forward() are overridden to remove multi-option and aggregation logic.
+    """
+
+    def __init__(
+        self,
+        actor: PPO_Actor,
+        critic: PPO_Critic,
+        beta: float,
+        intrinsic_reward_fn: BaseIntRewardFunctions,
+        noise_std: float,
+        num_exp_updates: int,
+        base_policy_update_type: str = "trpo",
+        lr: float = 3e-4,
+        critic_lr: float = 3e-4,
+        entropy_scaler: float = 1e-3,
+        target_kl: float = 0.03,
+        l2_reg: float = 1e-8,
+        gamma: float = 0.99,
+        gae: float = 0.95,
+        anneal_kl: bool = True,
+        device: str = "cpu",
+    ):
+        super().__init__(
+            actor=actor,
+            critic=critic,
+            beta=beta,
+            intrinsic_reward_fn=intrinsic_reward_fn,
+            aggregation_method="argmax",  # unused, required by parent signature
+            noise_std=noise_std,
+            num_exp_updates=num_exp_updates,
+            base_policy_update_type=base_policy_update_type,
+            lr=lr,
+            critic_lr=critic_lr,
+            entropy_scaler=entropy_scaler,
+            target_kl=target_kl,
+            l2_reg=l2_reg,
+            gamma=gamma,
+            gae=gae,
+            anneal_kl=anneal_kl,
+            device=device,
+        )
+        self.name = "IRPO_G"
+        assert self.num_options == 1, (
+            f"IRPO_G_Learner requires exactly 1 intrinsic reward (got {self.num_options}). "
+            "Use ALLOIntRewardFunctionG or RandomIntRewardFunctionsG."
+        )
+
+    def forward(self, state: np.ndarray, deterministic: bool = False):
+        state = self.preprocess_state(state)
+        a, metaData = self.final_exp_policies[0](state, deterministic=deterministic)
+        return a, {
+            "probs": metaData["probs"],
+            "logprobs": metaData["logprobs"],
+            "entropy": metaData["entropy"],
+            "dist": metaData["dist"],
+        }
+
+    def learn(
+        self, env, sampler: OnlineSampler, seed: int, learning_progress: float
+    ):
+        self.train()
+        t_start = time.time()
+        total_timesteps, total_sample_time = 0, 0
+        total_exp_update_time, total_backprop_time, total_base_update_time = 0, 0, 0
+
+        policy_dict, gradient_dict = self.init_exp_policies(), {}
+
+        # Initial rollout with the base policy
+        init_batch, init_sample_time = sampler.collect_samples(env, self.actor, seed)
+        total_sample_time += init_sample_time
+        total_timesteps += init_batch["states"].shape[0]
+
+        loss_dict_list = []
+
+        # Multi-step exploratory phase (MAML-style), single option (i=0)
+        for j in range(self.num_exp_updates):
+            flag = j == self.num_exp_updates - 1
+            actor_idx = f"0_{j}"
+            future_actor_idx = f"0_{j + 1}"
+            actor = policy_dict[actor_idx]
+
+            if j == 0:
+                init_batch["int_rewards"] = self.intrinsic_reward_fn(
+                    init_batch["states"], init_batch["next_states"]
+                )
+                batch = init_batch
+            else:
+                result, current_sample_time = sampler.collect_samples(
+                    env, [actor], seed
+                )
+                batch = result[0] if isinstance(result, list) else result
+                total_sample_time += current_sample_time
+                batch["int_rewards"] = self.intrinsic_reward_fn(
+                    batch["states"], batch["next_states"]
+                )
+                total_timesteps += batch["states"].shape[0]
+
+            exp_dict = self.learn_exploratory_policy(actor, batch, 0, flag)
+
+            loss_dict_list.append(exp_dict["loss_dict"])
+            gradient_dict[actor_idx] = exp_dict["gradients"]
+            policy_dict[future_actor_idx] = exp_dict["updated_actor"]
+            total_exp_update_time += exp_dict["update_time"]
+
+        # Single backprop — no aggregation
+        t_bp = time.time()
+        gradients = self.backprop(policy_dict, gradient_dict, 0)
+        total_backprop_time = time.time() - t_bp
+
+        # Base policy update
+        t_base = time.time()
+        backtrack_iter, backtrack_success = self.learn_base_policy(
+            states=init_batch["states"],
+            grads=gradients,
+        )
+        total_base_update_time = time.time() - t_base
+
+        total_time = time.time() - t_start
+        self.wall_clock_time += total_time
+
+        if self.anneal_kl:
+            self.anneal_target_kl(learning_progress)
+
+        loss_dict = self.average_dict_values(loss_dict_list)
+        loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
+            self.wall_clock_time / 3600.0
+        )
+        loss_dict[f"{self.name}/analytics/Backtrack_iter"] = backtrack_iter
+        loss_dict[f"{self.name}/analytics/Backtrack_success"] = backtrack_success
+        loss_dict[f"{self.name}/analytics/target_kl"] = self.target_kl
+        loss_dict[f"{self.name}/time_profile/total_sec"] = total_time
+        loss_dict[f"{self.name}/time_profile/sample_pct"] = (
+            total_sample_time / total_time
+        )
+        loss_dict[f"{self.name}/time_profile/exp_update_pct"] = (
+            total_exp_update_time / total_time
+        )
+        loss_dict[f"{self.name}/time_profile/backprop_pct"] = (
+            total_backprop_time / total_time
+        )
+        loss_dict[f"{self.name}/time_profile/base_update_pct"] = (
+            total_base_update_time / total_time
+        )
+
+        # Render the single exploratory policy
+        supp_dict = {}
+        state, _ = env.reset(seed=seed)
+        frames = []
+        img = env.render()
+        if img is not None:
+            frames.append(img)
+        done, step_count = False, 0
+        max_steps = getattr(env, "max_steps", 1000)
+        while not done and step_count < max_steps:
+            with torch.no_grad():
+                a, _ = self.final_exp_policies[0](state)
+                a = a.cpu().numpy().flatten()
+            state, _, term, trunc, _ = env.step(a)
+            done = term or trunc
+            step_count += 1
+            img = env.render()
+            if img is not None:
+                frames.append(img)
+        if frames:
+            supp_dict["rendering0"] = np.array(frames).transpose(0, 3, 1, 2)
+
+        self.eval()
+        return {
+            "loss_dict": loss_dict,
+            "timesteps": total_timesteps,
+            "supp_dict": supp_dict,
+        }

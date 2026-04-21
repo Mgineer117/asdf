@@ -27,9 +27,19 @@ POS_IDX = {
     "pointmaze": [-4, -3],
     "antmaze": [-4, -3],
     "fetchreach": [-6, -5, -4],
-    "fetchpush": [6, 7, 8, -6, -5, -4],
-    "fetchpickandplace": [6, 7, 8, -6, -5, -4],
-    "fetchslide": [6, 7, 8, -6, -5, -4],
+    "pacman": None,
+    "ant": [14],
+    "walker": [9],
+    "hopper": [6],
+    "halfcheetah": [9],
+}
+
+GOAL_IDX = {
+    "fourrooms": [2, 3],
+    "maze": [2, 3],
+    "pointmaze": [-2, -1],
+    "antmaze": [-2, -1],
+    "fetchreach": [-3, -2, -1],
     "pacman": None,
     "ant": [14],
     "walker": [9],

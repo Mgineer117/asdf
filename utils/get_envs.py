@@ -6,7 +6,7 @@ import gymnasium_robotics
 gym.register_envs(gymnasium_robotics)
 gym.register_envs(ale_py)
 
-from utils.__init__ import ANTMAZE_MAPS, EPI_LENGTH, POINTMAZE_MAPS, POS_IDX
+from utils.__init__ import ANTMAZE_MAPS, EPI_LENGTH, POINTMAZE_MAPS, POS_IDX, GOAL_IDX
 from utils.wrapper import (
     AntMazeWrapper,
     ArcadeWrapper,
@@ -114,6 +114,7 @@ def get_env(args):
 
     args.episode_len = episode_len
     args.pos_idx = POS_IDX[env_name]
+    args.goal_idx = GOAL_IDX[env_name]
     args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
     if env_name in ["fourrooms", "maze"]:
