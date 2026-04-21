@@ -122,7 +122,7 @@ def pretrain_image_encoder(
     """
     Load or train a CNN image encoder using reconstruction loss on random frames.
 
-    Saves encoder weights to  model/<env_name>/encoder_<seed>.pth  so that
+    Saves encoder weights to  model/<env_name>/encoders/encoder_<seed>.pth  so that
     subsequent runs skip training entirely.
 
     Args:
@@ -140,7 +140,10 @@ def pretrain_image_encoder(
     """
     env_name = _get_env_name(env)
     os.makedirs(f"model/{env_name}", exist_ok=True)
-    model_path = f"model/{env_name}/encoder_{seed}.pth"
+    encoder_dir = f"model/{env_name}/encoders"
+    os.makedirs(encoder_dir, exist_ok=True)
+    model_path = f"{encoder_dir}/encoder_{seed}.pth"
+    legacy_model_path = f"model/{env_name}/encoder_{seed}.pth"
 
     # Determine image shape from the environment observation space
     obs_shape = env.observation_space.shape  # e.g. (210, 160) grayscale
@@ -156,6 +159,13 @@ def pretrain_image_encoder(
     if os.path.exists(model_path):
         print(f"[INFO] Loading pretrained encoder from {model_path}")
         encoder.load_state_dict(torch.load(model_path, map_location=device))
+        encoder.eval()
+        return encoder
+    if os.path.exists(legacy_model_path):
+        print(
+            f"[INFO] Loading pretrained encoder from legacy path {legacy_model_path}"
+        )
+        encoder.load_state_dict(torch.load(legacy_model_path, map_location=device))
         encoder.eval()
         return encoder
 
