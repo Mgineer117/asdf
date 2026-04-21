@@ -354,9 +354,9 @@ def plot_all(
         fontsize=11,
         y=1.002,
     )
-    plt.savefig("reward_visualization.png", dpi=150, bbox_inches="tight")
+    plt.savefig("reward_visualization.svg", dpi=150, bbox_inches="tight")
     print("Saved reward_visualization.png")
-    plt.show()
+    # plt.show()
 
 
 # ---------------------------------------------------------------------------

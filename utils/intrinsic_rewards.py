@@ -343,7 +343,6 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
         self.mode = mode
         # Single combined reward regardless of args.num_options
         self.num_rewards = 1
-        self.reward_rms = RunningMeanStd(shape=(1,))
 
     def forward(
         self, states: np.ndarray | torch.Tensor, next_states: np.ndarray | torch.Tensor
@@ -357,8 +356,6 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
             phi_s, _ = self.extractor(states)  # (B, feature_dim)
             phi_g, _ = self.extractor(goals)  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
-
-        intrinsic_rewards = self.reward_rms.normalize_var_only(intrinsic_rewards)
 
         return intrinsic_rewards
 
@@ -583,7 +580,6 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
         self.mode = mode
         # Single combined reward regardless of args.num_options
         self.num_rewards = 1
-        self.reward_rms = RunningMeanStd(shape=(1,))
 
     def forward(
         self, states: np.ndarray | torch.Tensor, next_states: np.ndarray | torch.Tensor
@@ -597,7 +593,5 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
             phi_s, _ = self.extractor(states)  # (B, feature_dim)
             phi_g, _ = self.extractor(goals)  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
-
-        intrinsic_rewards = self.reward_rms.normalize_var_only(intrinsic_rewards)
 
         return intrinsic_rewards
