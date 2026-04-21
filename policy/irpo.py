@@ -358,9 +358,45 @@ class IRPO_Learner(Base):
             total_base_update_time / total_n_irpo_time
         )
 
+        #### for all exploratory policies ####
+        supp_dict = {}
+        for option_idx, policy in enumerate(self.final_exp_policies):
+            state, _ = env.reset(seed=seed)
+            frames = []
+
+            img = env.render()
+            if img is not None:
+                frames.append(img)
+
+            done = False
+            max_steps = getattr(env, "max_steps", 1000)
+            step_count = 0
+
+            while not done and step_count < max_steps:
+                with torch.no_grad():
+                    a, _ = policy(state, deterministic=True)
+                    a = a.cpu().numpy().flatten()
+
+                state, _, term, trunc, _ = env.step(a)
+                done = term or trunc
+                step_count += 1
+
+                img = env.render()
+                if img is not None:
+                    frames.append(img)
+
+            if len(frames) > 0:
+                # Convert to (T, C, H, W) shape, standard for wandb.Video and TensorBoard
+                gif = np.array(frames).transpose(0, 3, 1, 2)
+                supp_dict[f"rendering{option_idx}"] = gif
+
         self.eval()
 
-        return {"loss_dict": loss_dict, "timesteps": total_timesteps}
+        return {
+            "loss_dict": loss_dict,
+            "timesteps": total_timesteps,
+            "supp_dict": supp_dict,
+        }
 
     def learn_exploratory_policy(
         self, actor: nn.Module, batch: dict, i: int, flag: bool

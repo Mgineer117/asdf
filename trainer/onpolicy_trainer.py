@@ -38,6 +38,13 @@ class OnPolicyTrainer(BaseTrainer):
                 # Unpack the dictionary using **
                 info = self.policy.learn(**learn_args)
                 self.write_log(info["loss_dict"], self.current_step)
+
+                for key, video_array in info.get("supp_dict", {}).items():
+                    if video_array is not None and len(video_array) > 0:
+                        # Revert (T, C, H, W) to list of (H, W, C) frames for BaseTrainer's API
+                        frames = list(np.transpose(video_array, (0, 2, 3, 1)))
+                        self.write_video(frames, self.current_step, "Video", key)
+
                 pbar.update(info["timesteps"])
 
                 if self.current_step >= self.eval_interval * (self.eval_idx + 1):
