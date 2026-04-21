@@ -69,12 +69,58 @@ class RunningMeanStd:
 
 
 class ArcadeWrapper(gym.Wrapper):
-    def __init__(self, env: gym.Env):
-        super(ArcadeWrapper, self).__init__(env)
+    """
+    Wrapper for Atari environments.
+
+    If an ``encoder`` is supplied (a pretrained ImageEncoder), every observation
+    is encoded *inside* the wrapper so downstream code — samplers, replay buffers,
+    intrinsic reward networks, and the policy — all operate on compact feature
+    vectors instead of raw pixel arrays.  This eliminates the large (N, H, W)
+    image batches that would otherwise fill GPU/CPU memory.
+
+    Args:
+        env:     Raw Atari gymnasium environment.
+        encoder: Optional pretrained ``ImageEncoder``.  When provided the
+                 ``observation_space`` is updated to ``Box(-inf, inf, (encoder_dim,))``.
+        device:  Torch device used for encoder inference.
+    """
+
+    def __init__(self, env: gym.Env, encoder=None, device: str = "cpu"):
+        super().__init__(env)
+        self._encoder = encoder
+        self._device = device
+
+        if encoder is not None:
+            import torch
+            self._torch = torch
+            self.observation_space = gym.spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(encoder.encoder_dim,),
+                dtype=np.float32,
+            )
+
+    # ------------------------------------------------------------------
+
+    def _encode(self, obs: np.ndarray) -> np.ndarray:
+        """Encode a raw pixel frame to a feature vector (if encoder set)."""
+        if self._encoder is None:
+            return obs
+        # obs: (H, W) uint8 grayscale
+        t = self._torch.from_numpy(obs.astype(np.float32) / 255.0)
+        t = t.unsqueeze(0).unsqueeze(0).to(self._device)  # (1, 1, H, W)
+        with self._torch.no_grad():
+            feat = self._encoder(t)  # (1, encoder_dim)
+        return feat.squeeze(0).cpu().numpy()  # (encoder_dim,)
 
     def step(self, action):
         action = np.argmax(action)
-        return self.env.step(action)
+        obs, reward, term, trunc, info = self.env.step(action)
+        return self._encode(obs), reward, term, trunc, info
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return self._encode(obs), info
 
     def get_trajectory_info(self):
         return None, None

@@ -84,13 +84,23 @@ def get_env(args):
 
         env = AntMazeWrapper(env, example_map, episode_len, args.seed, cell_size=4.0)
     elif env_name == "pacman":
-        env = gym.make(
+        from extractor.base.image_encoder import pretrain_image_encoder
+
+        _raw_env = gym.make(
             "ALE/Pacman-v5",
             render_mode="rgb_array",
             max_episode_steps=episode_len,
             obs_type="grayscale",
         )
-        env = ArcadeWrapper(env)
+        # Pretrain (or load) the CNN encoder on raw frames, then encode at the
+        # wrapper level so the batch stores compact vectors, not pixel arrays.
+        _encoder = pretrain_image_encoder(
+            _raw_env,
+            seed=args.seed,
+            encoder_dim=getattr(args, "encoder_dim", 256),
+            device=getattr(args, "device", "cpu"),
+        )
+        env = ArcadeWrapper(_raw_env, encoder=_encoder, device=getattr(args, "device", "cpu"))
     elif env_name == "ant":
         env = gym.make(
             "Ant-v5",
@@ -136,7 +146,8 @@ def get_env(args):
         )
         args.action_dim = env.action_space.shape[0]
     elif env_name in ["pacman"]:
-        args.state_dim = env.observation_space.shape
+        # observation_space.shape is (encoder_dim,) after ArcadeWrapper encoding
+        args.state_dim = env.observation_space.shape[0]
         args.action_dim = env.action_space.n
     elif env_name in ["ant", "walker", "halfcheetah", "hopper"]:
         args.state_dim = (env.observation_space.shape[0] + len(args.pos_idx),)
