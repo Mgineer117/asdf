@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-from torch import random
+import random
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import grad
