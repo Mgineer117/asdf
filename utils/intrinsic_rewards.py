@@ -338,9 +338,6 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
     def __init__(self, mode: str = "rbf", **kwargs):
         super(RandomIntRewardFunctionsG, self).__init__(**kwargs)
 
-        self.goal_idx = self.args.goal_idx
-        if self.goal_idx is None:
-            raise ValueError("Goal index not specified.")
         if mode not in KERNEL_MODES:
             raise ValueError(
                 f"Unknown kernel mode '{mode}'. Choose from {KERNEL_MODES}."
@@ -354,13 +351,13 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
     ):
         states, next_states = self.preprocess_inputs(states, next_states)
 
-        goals = states[:, self.goal_idx]  # (B, len(goal_idx))
+        goals = states[:, self.args.goal_idx]  # (B, len(goal_idx))
         states = states[:, self.args.pos_idx]
         next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            phi_s, _ = self.extractor(states)   # (B, feature_dim)
-            phi_g, _ = self.extractor(goals)    # (B, feature_dim)
+            phi_s, _ = self.extractor(states)  # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
 
             if self.use_diff:
@@ -581,9 +578,6 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
     def __init__(self, mode: str = "cosine", **kwargs):
         super(ALLOIntRewardFunctionG, self).__init__(**kwargs)
 
-        self.goal_idx = self.args.goal_idx
-        if self.goal_idx is None:
-            raise ValueError("Goal index not specified.")
         if mode not in KERNEL_MODES:
             raise ValueError(
                 f"Unknown kernel mode '{mode}'. Choose from {KERNEL_MODES}."
@@ -597,12 +591,12 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
     ):
         states, next_states = self.preprocess_inputs(states, next_states)
 
-        goals = states[:, self.goal_idx]  # (B, len(goal_idx))
+        goals = states[:, self.args.goal_idx]  # (B, len(goal_idx))
         states = states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            phi_s, _ = self.extractor(states)    # (B, feature_dim)
-            phi_g, _ = self.extractor(goals)     # (B, feature_dim)
+            phi_s, _ = self.extractor(states)  # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
 
             if self.use_diff:
