@@ -680,7 +680,7 @@ class IRPO_G_Learner(IRPO_Learner):
             "Use ALLOIntRewardFunctionG or RandomIntRewardFunctionsG."
         )
 
-    def forward(self, state: np.ndarray, deterministic: bool = False):
+    def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
         a, metaData = self.final_exp_policies[0](state, deterministic=deterministic)
         return a, {
@@ -690,9 +690,7 @@ class IRPO_G_Learner(IRPO_Learner):
             "dist": metaData["dist"],
         }
 
-    def learn(
-        self, env, sampler: OnlineSampler, seed: int, learning_progress: float
-    ):
+    def learn(self, env, sampler: OnlineSampler, seed: int, learning_progress: float):
         self.train()
         t_start = time.time()
         total_timesteps, total_sample_time = 0, 0
