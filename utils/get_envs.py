@@ -181,6 +181,12 @@ def get_env(args):
     args.goal_idx = GOAL_IDX[env_name]
     args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
+    # Pacman observations are already encoded into a flat feature vector by
+    # ArcadeWrapper, so ALLO should consume the full vector rather than a
+    # hand-picked positional subset.
+    if env_name == "pacman":
+        args.pos_idx = list(range(env.observation_space.shape[0]))
+
     _goal_conditioned_envs = {
         "fourroomsG", "mazeG", "pointmazeG",
         "antmazeG", "fetchreach", "fetchpush", "fetchpusheasy",
