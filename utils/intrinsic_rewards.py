@@ -593,6 +593,7 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
 
         goals = states[:, self.args.goal_idx]  # (B, len(goal_idx))
         states = states[:, self.args.pos_idx]
+        next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
             phi_s, _ = self.extractor(states)  # (B, feature_dim)
