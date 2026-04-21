@@ -69,8 +69,13 @@ KERNEL_SPECS = [
 class Model:
 
     def __init__(self):
-        self.eigenvectors = [n // 2 + 1 for n in range(4)]  # [1, 1, 2, 2]
-        self.sings = [2 * (n % 2) - 1 for n in range(4)]  # [-1, 1, -1, 1]
+        self.num_options = 4
+        self.eigenvectors = [
+            n // 2 + 1 for n in range(self.num_options)
+        ]  # [1, 1, 2, 2]
+        self.sings = [
+            2 * (n % 2) - 1 for n in range(self.num_options)
+        ]  # [-1, 1, -1, 1]
 
         model_path = "model/fourrooms-v1/ALLO_410_50000_0.9.pth"
         self.extractor = MLP(
@@ -90,7 +95,9 @@ class Model:
 
     def get_features(self, states: np.ndarray) -> np.ndarray:
         with torch.no_grad():
-            return self.extractor(torch.from_numpy(states)).numpy()
+            return self.extractor(torch.from_numpy(states)).numpy()[
+                :, : self.num_options
+            ]
 
     def forward(self, states: np.ndarray) -> torch.Tensor:
         with torch.no_grad():
@@ -103,8 +110,9 @@ class RandomModel(Model):
     """Same architecture, random weights — baseline with no learned geometry."""
 
     def __init__(self):
-        self.eigenvectors = [n // 2 + 1 for n in range(4)]
-        self.sings = [2 * (n % 2) - 1 for n in range(4)]
+        self.num_options = 4
+        self.eigenvectors = [n // 2 + 1 for n in range(self.num_options)]
+        self.sings = [2 * (n % 2) - 1 for n in range(self.num_options)]
         self.extractor = MLP(
             input_dim=2,
             hidden_dims=[512, 512, 512, 512],

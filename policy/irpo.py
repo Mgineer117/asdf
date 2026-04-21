@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+from torch import random
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import grad
@@ -802,7 +803,8 @@ class IRPO_G_Learner(IRPO_Learner):
 
         # Render the single exploratory policy
         supp_dict = {}
-        state, _ = env.reset(seed=seed)
+        eval_seed = random.randint(0, 10000)  # New seed for rendering
+        state, _ = env.reset(seed=eval_seed)
         frames = []
         img = env.render()
         if img is not None:

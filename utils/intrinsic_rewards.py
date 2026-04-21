@@ -356,12 +356,16 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
         next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            phi_s, _ = self.extractor(states)  # (B, feature_dim)
-            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
+            phi_s, _ = self.extractor(states)[
+                :, : self.args.num_options
+            ]  # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)[
+                :, : self.args.num_options
+            ]  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
 
             if self.use_diff:
-                n_phi_s, _ = self.extractor(next_states)
+                n_phi_s, _ = self.extractor(next_states)[:, : self.args.num_options]
                 n_intrinsic_rewards = _apply_kernel(n_phi_s, phi_g, self.mode)
                 intrinsic_rewards = n_intrinsic_rewards - intrinsic_rewards
 
@@ -575,7 +579,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
 
 
 class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
-    def __init__(self, mode: str = "cosine", **kwargs):
+    def __init__(self, mode: str = "rbf", **kwargs):
         super(ALLOIntRewardFunctionG, self).__init__(**kwargs)
 
         if mode not in KERNEL_MODES:
@@ -596,12 +600,18 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
         next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            phi_s, _ = self.extractor(states)  # (B, feature_dim)
-            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
+            phi_s, _ = self.extractor(states)[
+                :, : self.args.num_options
+            ]  # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)[
+                :, : self.args.num_options
+            ]  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
 
             if self.use_diff:
-                n_phi_s, _ = self.extractor(next_states)  # (B, feature_dim)
+                n_phi_s, _ = self.extractor(next_states)[
+                    :, : self.args.num_options
+                ]  # (B, feature_dim)
                 n_intrinsic_rewards = _apply_kernel(n_phi_s, phi_g, self.mode)
                 intrinsic_rewards = n_intrinsic_rewards - intrinsic_rewards
 
