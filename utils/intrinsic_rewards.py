@@ -207,6 +207,8 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
         # Save input shape to determine if we are working with Images or Vectors
         self.input_shape = self.args.state_dim
 
+        self.use_diff = kwargs.get("use_diff", True)
+
         self.define_reward_model()
         self.define_eigenvectors()
 
@@ -252,9 +254,12 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             next_states = next_states.float() / 255.0
 
         with torch.no_grad():
-            feature, _ = self.extractor(states)
-            next_feature, _ = self.extractor(next_states)
-            difference = next_feature - feature
+            if self.use_diff:
+                feature, _ = self.extractor(states)
+                next_feature, _ = self.extractor(next_states)
+                difference = next_feature - feature
+            else:
+                difference, _ = self.extractor(states)
 
             # Extract all indices and signs for every 'i'
             indices = [e[0] for e in self.eigenvectors]
@@ -351,11 +356,17 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
 
         goals = states[:, self.goal_idx]  # (B, len(goal_idx))
         states = states[:, self.args.pos_idx]
+        next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            phi_s, _ = self.extractor(states)  # (B, feature_dim)
-            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
+            phi_s, _ = self.extractor(states)   # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)    # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
+
+            if self.use_diff:
+                n_phi_s, _ = self.extractor(next_states)
+                n_intrinsic_rewards = _apply_kernel(n_phi_s, phi_g, self.mode)
+                intrinsic_rewards = n_intrinsic_rewards - intrinsic_rewards
 
         return intrinsic_rewards
 
@@ -385,7 +396,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         super(ALLOIntRewardFunctions, self).__init__(**kwargs)
 
         self.num_trials = 2_000
-        self.use_diff = kwargs.get("use_diff", False)
+        self.use_diff = kwargs.get("use_diff", True)
 
         self.define_reward_model()
         self.define_eigenvectors()
@@ -590,8 +601,13 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
         states = states[:, self.args.pos_idx]
 
         with torch.no_grad():
-            phi_s, _ = self.extractor(states)  # (B, feature_dim)
-            phi_g, _ = self.extractor(goals)  # (B, feature_dim)
+            phi_s, _ = self.extractor(states)    # (B, feature_dim)
+            phi_g, _ = self.extractor(goals)     # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
+
+            if self.use_diff:
+                n_phi_s, _ = self.extractor(next_states)  # (B, feature_dim)
+                n_intrinsic_rewards = _apply_kernel(n_phi_s, phi_g, self.mode)
+                intrinsic_rewards = n_intrinsic_rewards - intrinsic_rewards
 
         return intrinsic_rewards

@@ -690,6 +690,20 @@ class IRPO_G_Learner(IRPO_Learner):
             "dist": metaData["dist"],
         }
 
+    def measure_kl_among_exp_policies(self, batch: dict):
+        """
+        For a single option, measure KL divergence between the base policy and
+        the single exploratory policy.
+        """
+        states = self.preprocess_state(batch["states"])
+        with torch.no_grad():
+            _, base_meta = self.actor(states)
+            _, exp_meta = self.final_exp_policies[0](states)
+            kl_div = torch.distributions.kl_divergence(
+                base_meta["dist"], exp_meta["dist"]
+            ).mean()
+        return kl_div.item()
+
     def learn(self, env, sampler: OnlineSampler, seed: int, learning_progress: float):
         self.train()
         t_start = time.time()
@@ -735,6 +749,12 @@ class IRPO_G_Learner(IRPO_Learner):
             policy_dict[future_actor_idx] = exp_dict["updated_actor"]
             total_exp_update_time += exp_dict["update_time"]
 
+            if flag:
+                self.perf_gains[0] = (
+                    self.beta * self.perf_gains[0]
+                    + (1 - self.beta) * exp_dict["ext_return"]
+                )
+
         # Single backprop — no aggregation
         t_bp = time.time()
         gradients = self.backprop(policy_dict, gradient_dict, 0)
@@ -751,16 +771,21 @@ class IRPO_G_Learner(IRPO_Learner):
         total_time = time.time() - t_start
         self.wall_clock_time += total_time
 
+        kl_diff = self.measure_kl_among_exp_policies(init_batch)
         if self.anneal_kl:
             self.anneal_target_kl(learning_progress)
 
         loss_dict = self.average_dict_values(loss_dict_list)
+        loss_dict[f"{self.name}/analytics/avg_ext_returns"] = (
+            self.perf_gains.mean().item()
+        )
         loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
             self.wall_clock_time / 3600.0
         )
         loss_dict[f"{self.name}/analytics/Backtrack_iter"] = backtrack_iter
         loss_dict[f"{self.name}/analytics/Backtrack_success"] = backtrack_success
         loss_dict[f"{self.name}/analytics/target_kl"] = self.target_kl
+        loss_dict[f"{self.name}/analytics/kl_divergence"] = kl_diff
         loss_dict[f"{self.name}/time_profile/total_sec"] = total_time
         loss_dict[f"{self.name}/time_profile/sample_pct"] = (
             total_sample_time / total_time
