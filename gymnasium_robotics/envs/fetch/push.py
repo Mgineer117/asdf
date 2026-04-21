@@ -35,6 +35,72 @@ class MujocoPyFetchPushEnv(MujocoPyFetchEnv, EzPickle):
         EzPickle.__init__(self, reward_type=reward_type, **kwargs)
 
 
+class EasyMujocoFetchPushEnv(MujocoFetchEnv, EzPickle):
+    """
+    Easier variant of FetchPush-v4 for bootstrapping exploration.
+
+    Changes vs. the standard env:
+      obj_range:          0.15 → 0.10  (block spawns tighter around gripper)
+      target_range:       0.15 → 0.06  (goal much closer to gripper start)
+      distance_threshold: 0.05 → 0.08  (more lenient success criterion)
+      min block distance: 0.10 → 0.06  (gripper can start closer to block)
+
+    Register as "FetchPushEasy-v4" in gymnasium_robotics/__init__.py and
+    add it to get_envs.py under the key "fetchpusheasy".
+    """
+
+    _MIN_BLOCK_DIST = 0.06  # overrides the 0.1 hardcoded in base _reset_sim
+
+    def __init__(self, reward_type="sparse", **kwargs):
+        initial_qpos = {
+            "robot0:slide0": 0.405,
+            "robot0:slide1": 0.48,
+            "robot0:slide2": 0.0,
+            "object0:joint": [1.25, 0.53, 0.4, 1.0, 0.0, 0.0, 0.0],
+        }
+        MujocoFetchEnv.__init__(
+            self,
+            model_path=MODEL_XML_PATH,
+            has_object=True,
+            block_gripper=True,
+            n_substeps=20,
+            gripper_extra_height=0.0,
+            target_in_the_air=False,
+            target_offset=0.0,
+            obj_range=0.10,
+            target_range=0.06,
+            distance_threshold=0.08,
+            initial_qpos=initial_qpos,
+            reward_type=reward_type,
+            **kwargs,
+        )
+        EzPickle.__init__(self, reward_type=reward_type, **kwargs)
+
+    def _reset_sim(self):
+        import numpy as np
+
+        self._mujoco.mj_resetData(self.model, self.data)
+        self.data.time = self.initial_time
+        self.data.qpos[:] = self.initial_qpos.copy()
+        self.data.qvel[:] = self.initial_qvel.copy()
+        if self.model.na != 0:
+            self.data.act[:] = None
+
+        if self.has_object:
+            object_xpos = self.initial_gripper_xpos[:2]
+            while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < self._MIN_BLOCK_DIST:
+                object_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
+                    -self.obj_range, self.obj_range, size=2
+                )
+            object_qpos = self._utils.get_joint_qpos(self.model, self.data, "object0:joint")
+            assert object_qpos.shape == (7,)
+            object_qpos[:2] = object_xpos
+            self._utils.set_joint_qpos(self.model, self.data, "object0:joint", object_qpos)
+
+        self._mujoco.mj_forward(self.model, self.data)
+        return True
+
+
 class MujocoFetchPushEnv(MujocoFetchEnv, EzPickle):
     """
     ## Description

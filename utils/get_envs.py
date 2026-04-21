@@ -48,6 +48,14 @@ def get_env(args):
         )
 
         env = FetchWrapper(env, episode_len, args.seed)
+    elif env_name == "fetchpusheasy":
+        env = gym.make(
+            "FetchPushEasy-v4",
+            max_episode_steps=episode_len,
+            render_mode="rgb_array",
+        )
+
+        env = FetchWrapper(env, episode_len, args.seed)
     elif env_name == "pointmaze":
         key = f"{env_name}-{version}"
         example_map = POINTMAZE_MAPS[key]
@@ -120,7 +128,7 @@ def get_env(args):
     if env_name in ["fourrooms", "maze"]:
         args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.n
-    elif env_name in ["pointmaze", "antmaze", "fetchreach", "fetchpush"]:
+    elif env_name in ["pointmaze", "antmaze", "fetchreach", "fetchpush", "fetchpusheasy"]:
         args.state_dim = (
             env.observation_space["observation"].shape[0]
             + env.observation_space["achieved_goal"].shape[0]

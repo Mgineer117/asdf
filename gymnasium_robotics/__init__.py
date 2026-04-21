@@ -79,6 +79,13 @@ def register_robotics_envs():
             max_episode_steps=50,
         )
 
+        register(
+            id=f"FetchPushEasy{suffix}-v4",
+            entry_point="gymnasium_robotics.envs.fetch.push:EasyMujocoFetchPushEnv",
+            kwargs=kwargs,
+            max_episode_steps=100,
+        )
+
         # Hand
         register(
             id=f"HandReach{suffix}-v0",
