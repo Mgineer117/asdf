@@ -358,6 +358,8 @@ class RandomIntRewardFunctionsG(RandomIntRewardFunctions):
             phi_g, _ = self.extractor(goals)  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
 
+        intrinsic_rewards = self.reward_rms.normalize_var_only(intrinsic_rewards)
+
         return intrinsic_rewards
 
 
@@ -595,5 +597,7 @@ class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):
             phi_s, _ = self.extractor(states)  # (B, feature_dim)
             phi_g, _ = self.extractor(goals)  # (B, feature_dim)
             intrinsic_rewards = _apply_kernel(phi_s, phi_g, self.mode)
+
+        intrinsic_rewards = self.reward_rms.normalize_var_only(intrinsic_rewards)
 
         return intrinsic_rewards
