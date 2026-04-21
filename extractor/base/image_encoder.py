@@ -78,7 +78,9 @@ class ConvAutoEncoder(nn.Module):
 
         # Compute intermediate spatial shape after CNN conv layers (before flatten+linear)
         with torch.no_grad():
-            dummy = torch.zeros(1, *input_chw)
+            # Put dummy on the same device as the encoder weights to avoid device mismatch
+            _dev = next(self.encoder.parameters()).device
+            dummy = torch.zeros(1, *input_chw, device=_dev)
             # CNN.cnn is a Sequential ending with nn.Flatten — strip it to get (C, H, W)
             conv_only = nn.Sequential(*list(self.encoder.backbone.cnn.children())[:-1])
             spatial = conv_only(dummy)                    # (1, C', H', W')
