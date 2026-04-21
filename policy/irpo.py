@@ -39,8 +39,6 @@ class IRPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.95,
         anneal_kl: bool = True,
-        pos_idx: list = None,
-        goal_idx: list = None,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -105,9 +103,6 @@ class IRPO_Learner(Base):
         # Storage for the best policies found during exploration (for inference/eval)
         self.final_exp_policies = [deepcopy(actor) for _ in range(self.num_options)]
 
-        # State normalisation — goal dims synced to achieved_goal stats after each update
-        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
-
         self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
 
@@ -117,7 +112,6 @@ class IRPO_Learner(Base):
 
     def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
-        state = self._normalize_obs(state)
 
         best_idx = (
             self.locked_option_idx
@@ -170,7 +164,6 @@ class IRPO_Learner(Base):
         for i in range(self.num_options):
             actor = self.final_exp_policies[i]
             states = self.preprocess_state(batch["states"])
-            states = self._normalize_obs(states)
             with torch.no_grad():
                 _, metaData = actor(states)
                 dist = metaData["dist"]
@@ -291,19 +284,19 @@ class IRPO_Learner(Base):
             # REVERSE SOFTMAX: Amplify low return option idx (Lower bound maximization)
             logits = active_gains
             # logits = -active_gains
-            weights = F.softmax(logits / temperature, dim=0)
+            # weights = F.softmax(logits / temperature, dim=0)
 
-            # if self.aggregation_method == "argmax":
-            #     weights = torch.zeros_like(logits)
-            #     weights[torch.argmax(logits)] = 1.0
-            # elif self.aggregation_method == "uniform":
-            #     weights = torch.ones_like(logits) / logits.shape[0]
-            # elif self.aggregation_method == "softmax":
-            #     weights = F.softmax(logits / temperature, dim=0)
-            # else:
-            #     raise ValueError(
-            #         f"Invalid aggregation method: {self.aggregation_method}"
-            #     )
+            if self.aggregation_method == "argmax":
+                weights = torch.zeros_like(logits)
+                weights[torch.argmax(logits)] = 1.0
+            elif self.aggregation_method == "uniform":
+                weights = torch.ones_like(logits) / logits.shape[0]
+            elif self.aggregation_method == "softmax":
+                weights = F.softmax(logits / temperature, dim=0)
+            else:
+                raise ValueError(
+                    f"Invalid aggregation method: {self.aggregation_method}"
+                )
 
             outer_gradients = [
                 self.backprop(policy_dict, gradient_dict, i) for i in active_indices
@@ -422,12 +415,6 @@ class IRPO_Learner(Base):
         int_rewards = self.preprocess_state(batch["int_rewards"][:, i : i + 1])
         terminations = self.preprocess_state(batch["terminations"])
         truncations = self.preprocess_state(batch["truncations"])
-
-        # Update shared obs RMS, sync goal dims to achieved_goal stats, then normalise
-        if self.obs_rms is not None:
-            self.obs_rms.update(states.detach().cpu().numpy())
-            self._sync_goal_stats()
-        states = self._normalize_obs(states)
 
         # MAKE PLOT (x-axis: states[:, 0], y-axis: int_rewards[:, 0])
         # plt.figure()
@@ -568,7 +555,6 @@ class IRPO_Learner(Base):
     ):
         if self.base_policy_update_type == "trpo":
             states = self.preprocess_state(states)
-            states = self._normalize_obs(states)
             old_actor = deepcopy(self.actor)
 
             # Flatten the aggregated gradients

@@ -6,7 +6,15 @@ import gymnasium_robotics
 gym.register_envs(gymnasium_robotics)
 gym.register_envs(ale_py)
 
-from utils.__init__ import ANTMAZE_MAPS, EPI_LENGTH, POINTMAZE_MAPS, POS_IDX, GOAL_IDX
+from utils.__init__ import (
+    ANTMAZE_G_MAPS,
+    ANTMAZE_MAPS,
+    EPI_LENGTH,
+    POINTMAZE_G_MAPS,
+    POINTMAZE_MAPS,
+    POS_IDX,
+    GOAL_IDX,
+)
 from utils.wrapper import (
     AntMazeWrapper,
     ArcadeWrapper,
@@ -27,10 +35,20 @@ def get_env(args):
 
         env = FourRooms(grid_type=version, max_steps=episode_len)
         env = GridWrapper(env)
+    elif env_name == "fourroomsG":
+        from gridworld.envs.fourrooms import FourRooms
+
+        env = FourRooms(grid_type=version, max_steps=episode_len, goal_conditioned=True)
+        env = GridWrapper(env)
     elif env_name == "maze":
         from gridworld.envs.maze import Maze
 
         env = Maze(grid_type=version, max_steps=episode_len)
+        env = GridWrapper(env)
+    elif env_name == "mazeG":
+        from gridworld.envs.maze import Maze
+
+        env = Maze(grid_type=version, max_steps=episode_len, goal_conditioned=True)
         env = GridWrapper(env)
     elif env_name == "fetchreach":
         env = gym.make(
@@ -57,7 +75,7 @@ def get_env(args):
 
         env = FetchWrapper(env, episode_len, args.seed)
     elif env_name == "pointmaze":
-        key = f"{env_name}-{version}"
+        key = f"pointmaze-{version}"
         example_map = POINTMAZE_MAPS[key]
 
         env = gym.make(
@@ -70,9 +88,37 @@ def get_env(args):
 
         env = MazeWrapper(env, example_map, episode_len, args.seed, cell_size=1.0)
 
+    elif env_name == "pointmazeG":
+        key = f"pointmaze-{version}"
+        example_map = POINTMAZE_G_MAPS[key]
+
+        env = gym.make(
+            "PointMaze_UMaze-v3",
+            maze_map=example_map,
+            max_episode_steps=episode_len,
+            continuing_task=False,
+            render_mode="rgb_array",
+        )
+
+        env = MazeWrapper(env, example_map, episode_len, args.seed, cell_size=1.0)
+
     elif env_name == "antmaze":
-        key = f"{env_name}-{version}"
+        key = f"antmaze-{version}"
         example_map = ANTMAZE_MAPS[key]
+
+        env = gym.make(
+            "AntMaze_UMaze-v5",
+            maze_map=example_map,
+            max_episode_steps=episode_len,
+            continuing_task=False,
+            render_mode="rgb_array",
+        )
+
+        env = AntMazeWrapper(env, example_map, episode_len, args.seed, cell_size=4.0)
+
+    elif env_name == "antmazeG":
+        key = f"antmaze-{version}"
+        example_map = ANTMAZE_G_MAPS[key]
 
         env = gym.make(
             "AntMaze_UMaze-v5",
@@ -135,10 +181,16 @@ def get_env(args):
     args.goal_idx = GOAL_IDX[env_name]
     args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
-    if env_name in ["fourrooms", "maze"]:
+    _goal_conditioned_envs = {
+        "fourroomsG", "mazeG", "pointmazeG",
+        "antmazeG", "fetchreach", "fetchpush", "fetchpusheasy",
+    }
+    args.is_goal_conditioned = env_name in _goal_conditioned_envs
+
+    if env_name in ["fourrooms", "fourroomsG", "maze", "mazeG"]:
         args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.n
-    elif env_name in ["pointmaze", "antmaze", "fetchreach", "fetchpush", "fetchpusheasy"]:
+    elif env_name in ["pointmaze", "pointmazeG", "antmaze", "antmazeG", "fetchreach", "fetchpush", "fetchpusheasy"]:
         args.state_dim = (
             env.observation_space["observation"].shape[0]
             + env.observation_space["achieved_goal"].shape[0]

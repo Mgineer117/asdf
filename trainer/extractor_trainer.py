@@ -28,6 +28,7 @@ class ExtractorTrainer:
         init_epoch: int = 0,
         epochs: int = 1e6,
         seed: int = 0,
+        init_step: int = 0,
     ) -> None:
         self.env = env
         self.policy = random_policy
@@ -40,6 +41,7 @@ class ExtractorTrainer:
         # training parameters
         self.init_epoch = init_epoch
         self.epochs = epochs
+        self.init_step = init_step
 
         # initialize the essential training components
         self.last_min_loss = 1e10
@@ -80,14 +82,14 @@ class ExtractorTrainer:
                     remaining_time / 3600
                 )  # Convert to hours
 
-                self.write_log(loss_dict, step=step)
+                self.write_log(loss_dict, step=self.init_step + step)
 
                 #### EVALUATIONS ####
                 if step > eval_idx * int(self.epochs / 1_000):
 
                     self.write_image(
                         image=eigenvalue_plot,
-                        step=step,
+                        step=self.init_step + step,
                         logdir="Image",
                         name="Eigenvalues",
                     )

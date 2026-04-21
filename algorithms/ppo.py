@@ -74,8 +74,6 @@ class PPO_Algorithm(nn.Module):
             gamma=self.args.gamma,
             gae=self.args.gae,
             K=self.args.K_epochs,
-            pos_idx=self.args.pos_idx,
-            goal_idx=self.args.goal_idx,
             device=self.args.device,
         )
 

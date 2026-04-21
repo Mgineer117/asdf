@@ -22,7 +22,7 @@ from gridworld.core.constants import *
 from gridworld.core.grid import Grid
 from gridworld.core.object import Floor, Goal, Lava, Obstacle, Wall
 from gridworld.core.world import GridWorld
-from gridworld.envs.__init__ import MAZE_MAPS
+from gridworld.envs.__init__ import MAZE_G_MAPS, MAZE_MAPS
 from gridworld.multigrid import MultiGridEnv
 from gridworld.policy.ctf.heuristic import (
     HEURISTIC_POLICIES,
@@ -43,6 +43,7 @@ class Maze(MultiGridEnv):
         self,
         grid_type: str,
         max_steps: int,
+        goal_conditioned: bool = False,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
@@ -63,7 +64,7 @@ class Maze(MultiGridEnv):
         )
 
         # Define positions for goals and agents
-        self.maze = MAZE_MAPS[grid_type]
+        self.maze = (MAZE_G_MAPS if goal_conditioned else MAZE_MAPS)[grid_type]
 
         self.width = len(self.maze[0])
         self.height = len(self.maze)

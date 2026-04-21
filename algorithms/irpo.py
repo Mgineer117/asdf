@@ -26,7 +26,6 @@ class IRPO_Algorithm(nn.Module):
             self.intrinsic_reward_fn = ALLOIntRewardFunctionG(
                 logger=logger, writer=writer, args=args, mode=mode
             )
-            self.goal_conditioned = True
         elif self.args.int_reward_type == "random":
             self.intrinsic_reward_fn = RandomIntRewardFunctionsG(
                 logger=logger,
@@ -34,16 +33,16 @@ class IRPO_Algorithm(nn.Module):
                 args=args,
                 mode=getattr(args, "kernel_mode", "rbf"),
             )
-            self.goal_conditioned = True
         elif self.args.int_reward_type == "arbitrary":
             self.intrinsic_reward_fn = ArbitraryIntRewardFunctions(
                 logger=logger, writer=writer, args=args, target=5.0
             )
-            self.goal_conditioned = False
         else:
             raise NotImplementedError(
                 f"Intrinsic reward type '{self.args.int_reward_type}' not implemented."
             )
+
+        self.goal_conditioned = getattr(args, "is_goal_conditioned", False)
 
         self.current_timesteps = self.intrinsic_reward_fn.current_timesteps
 

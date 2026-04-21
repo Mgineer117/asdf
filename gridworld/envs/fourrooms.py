@@ -22,7 +22,7 @@ from gridworld.core.constants import *
 from gridworld.core.grid import Grid
 from gridworld.core.object import Floor, Goal, Lava, Obstacle, Wall
 from gridworld.core.world import GridWorld
-from gridworld.envs.__init__ import FOURROOMS_MAPS
+from gridworld.envs.__init__ import FOURROOMS_G_MAPS, FOURROOMS_MAPS
 from gridworld.multigrid import MultiGridEnv
 from gridworld.policy.ctf.heuristic import (
     HEURISTIC_POLICIES,
@@ -43,6 +43,7 @@ class FourRooms(MultiGridEnv):
         self,
         grid_type: str,
         max_steps: int,
+        goal_conditioned: bool = False,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
@@ -64,7 +65,7 @@ class FourRooms(MultiGridEnv):
         )
 
         # Map the structure
-        self.map_structure = FOURROOMS_MAPS
+        self.map_structure = FOURROOMS_G_MAPS if goal_conditioned else FOURROOMS_MAPS
         self.maze = self.map_structure[self.grid_type]
 
         self.width = len(self.maze[0])

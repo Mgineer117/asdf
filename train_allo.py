@@ -22,6 +22,15 @@ if __name__ == "__main__":
     print(f"      Time Begun   : {exp_time}")
     print(f"-------------------------------------------------------")
 
+    # Single logger/writer shared across all seeds so wandb steps are monotonic.
+    first_args = override_args(init_args)
+    first_args.seed = seeds[0]
+    first_args.unique_id = unique_id
+    first_args.algo_name = "irpo"
+    first_args.int_reward_type = "allo"
+    logger, writer = setup_logger(first_args, unique_id, exp_time, seeds[0], False)
+
+    current_timesteps = 0
     for seed in seeds:
         args = override_args(init_args)
         args.seed = seed
@@ -29,6 +38,7 @@ if __name__ == "__main__":
         args.algo_name = "irpo"
         args.int_reward_type = "allo"
 
-        logger, writer = setup_logger(args, unique_id, exp_time, seed, False)
-
-        irf = ALLOIntRewardFunctions(logger=logger, writer=writer, args=args)
+        irf = ALLOIntRewardFunctions(
+            logger=logger, writer=writer, args=args, init_timesteps=current_timesteps
+        )
+        current_timesteps = irf.current_timesteps

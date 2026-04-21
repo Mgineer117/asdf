@@ -84,7 +84,7 @@ class AtariFeatureNet(nn.Module):
 
 
 class BaseIntRewardFunctions(nn.Module):
-    def __init__(self, logger, writer, args, **kwargs):
+    def __init__(self, logger, writer, args, init_timesteps: int = 0, **kwargs):
         super(BaseIntRewardFunctions, self).__init__()
 
         self.extractor_env = get_env(args)
@@ -92,7 +92,7 @@ class BaseIntRewardFunctions(nn.Module):
         self.writer = writer
         self.args = args
 
-        self.current_timesteps = 0
+        self.current_timesteps = init_timesteps
         self.num_rewards = args.num_options
         self.reward_rms = RunningMeanStd(shape=(self.num_rewards,))
 
@@ -268,15 +268,6 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             )
 
             intrinsic_rewards = difference[:, indices] * signs
-
-        # # normalize rewards using running std
-        # self.reward_rms.update(intrinsic_rewards.cpu().numpy())
-        # var_tensor = torch.as_tensor(
-        #     self.reward_rms.var,
-        #     device=intrinsic_rewards.device,
-        #     dtype=intrinsic_rewards.dtype,
-        # )
-        # intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
 
         intrinsic_rewards = self.reward_rms.normalize_var_only(intrinsic_rewards)
 
@@ -568,6 +559,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 logger=self.logger,
                 writer=self.writer,
                 epochs=self.args.extractor_epochs - epochs,
+                init_step=self.current_timesteps,
             )
             final_timesteps = trainer.train()
             self.current_timesteps += final_timesteps
