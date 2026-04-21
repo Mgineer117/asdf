@@ -21,6 +21,56 @@ class Base(nn.Module):
 
         self.state_visitation = None
 
+    def setup_obs_rms(self, state_dim, pos_idx=None, goal_idx=None):
+        """
+        Call once in learner __init__ to enable per-dimension state normalisation.
+
+        For goal-conditioned envs, pass pos_idx (achieved_goal indices) and
+        goal_idx (desired_goal indices). After every RMS update, desired_goal
+        dim stats are overwritten with achieved_goal dim stats, ensuring both
+        are normalised by the same well-estimated (high-variance) statistics.
+        This prevents the near-zero-variance problem that arises because the
+        desired_goal is constant within an episode while achieved_goal varies.
+        """
+        from utils.wrapper import RunningMeanStd
+
+        # Skip for image inputs (2-D or 3-D shape) — encoder already handles scale
+        if isinstance(state_dim, (tuple, list)) and len(state_dim) >= 2:
+            self.obs_rms = None
+            self._rms_pos_idx = None
+            self._rms_goal_idx = None
+        else:
+            total_dim = state_dim[0] if isinstance(state_dim, tuple) else state_dim
+            self.obs_rms = RunningMeanStd(shape=(total_dim,))
+            # Convert potentially-negative indices to positive for numpy indexing
+            to_pos = lambda idxs: [i % total_dim for i in idxs] if idxs else None
+            self._rms_pos_idx = to_pos(pos_idx)
+            self._rms_goal_idx = to_pos(goal_idx)
+            # Only sync when pos and goal are genuinely separate dimensions
+            if (self._rms_pos_idx is not None and self._rms_goal_idx is not None
+                    and self._rms_pos_idx == self._rms_goal_idx):
+                self._rms_goal_idx = None  # same dims — no sync needed
+
+    def _sync_goal_stats(self):
+        """
+        Copy achieved_goal dim statistics into desired_goal dim slots.
+        Must be called after every obs_rms.update() in goal-conditioned learners.
+        """
+        if (self.obs_rms is None
+                or self._rms_pos_idx is None
+                or self._rms_goal_idx is None):
+            return
+        for p, g in zip(self._rms_pos_idx, self._rms_goal_idx):
+            self.obs_rms.mean[g] = self.obs_rms.mean[p]
+            self.obs_rms.var[g] = self.obs_rms.var[p]
+
+    def _normalize_obs(self, x: torch.Tensor) -> torch.Tensor:
+        """Normalize x with running stats; no-op if obs_rms is None."""
+        rms = getattr(self, "obs_rms", None)
+        if rms is None:
+            return x
+        return rms.normalize(x)
+
     def print_parameter_devices(self, model):
         for name, param in model.named_parameters():
             print(f"{name}: {param.device}")

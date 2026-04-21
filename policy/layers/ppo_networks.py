@@ -24,7 +24,6 @@ class PPO_Actor(Base):
 
         self.hidden_dim = hidden_dim
         self.action_dim = np.prod(action_dim)
-        # self.rms = RunningMeanStd(shape=input_dim)
         self.is_discrete = is_discrete
 
         # Save the original input shape so we can rebuild flattened states
@@ -77,7 +76,6 @@ class PPO_Actor(Base):
         state: torch.Tensor,
         deterministic: bool = False,
     ):
-        # state = self.rms.normalize(state)
         state = self.preprocess_state(state)
 
         # --- Universal Image Reshape Logic ---
@@ -211,7 +209,6 @@ class PPO_Critic(nn.Module):
 
         # Save the original input shape so we can rebuild flattened states
         self.input_shape = input_dim
-        # self.rms = RunningMeanStd(shape=input_dim)
 
         # Check if observation is an image (C, H, W) or a 1D vector
         if isinstance(input_dim, (tuple, list)) and len(input_dim) == 3:
@@ -257,8 +254,6 @@ class PPO_Critic(nn.Module):
         self.to(device)
 
     def forward(self, x: torch.Tensor):
-        # x = self.rms.normalize(x)
-
         # --- Universal Image Reshape Logic ---
         if isinstance(self.input_shape, (tuple, list)):
             expected_flat_size = int(np.prod(self.input_shape))

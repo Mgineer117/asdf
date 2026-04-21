@@ -46,10 +46,10 @@ class RunningMeanStd:
             # Convert running stats to tensors on the same device as x
             mean = torch.tensor(self.mean, dtype=x.dtype, device=x.device)
             var = torch.tensor(self.var, dtype=x.dtype, device=x.device)
-            return (x - mean) / torch.sqrt(var + eps)
+            return torch.clamp((x - mean) / torch.sqrt(var + eps), -10.0, 10.0)
         else:
             # Handle standard NumPy arrays
-            return (x - self.mean) / np.sqrt(self.var + eps)
+            return np.clip((x - self.mean) / np.sqrt(self.var + eps), -10.0, 10.0)
 
     def normalize_var_only(self, x, eps=1e-8, update=False):
         """Normalizes input by dividing by std only. Optionally updates stats."""

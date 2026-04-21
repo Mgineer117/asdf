@@ -19,17 +19,17 @@ class MLP(nn.Module):
         hidden_dims = [input_dim] + hidden_dims
         model = []
 
-        # Example: Initialization for a layer based on activation function
-        if activation == nn.ReLU():
-            gain = nn.init.calculate_gain("relu")
-        elif activation == nn.LeakyReLU():
+        # Derive gain from actual activation type (isinstance avoids false-negative == on modules)
+        if isinstance(activation, nn.ReLU):
+            gain = nn.init.calculate_gain("relu")       # sqrt(2) ≈ 1.414
+        elif isinstance(activation, nn.LeakyReLU):
             gain = nn.init.calculate_gain("leaky_relu")
-        elif activation == nn.Tanh():
-            gain = nn.init.calculate_gain("tanh")
-        elif activation == nn.Sigmoid():
+        elif isinstance(activation, nn.Tanh):
+            gain = nn.init.calculate_gain("tanh")       # 5/3 ≈ 1.667
+        elif isinstance(activation, nn.Sigmoid):
             gain = nn.init.calculate_gain("sigmoid")
         else:
-            gain = 1.0  # Default if no known activation matches
+            gain = 1.0
 
         # Initialize hidden layers
         for in_dim, out_dim in zip(hidden_dims[:-1], hidden_dims[1:]):
@@ -39,11 +39,11 @@ class MLP(nn.Module):
                 linear_layer.bias.data.fill_(0.01)
 
             elif initialization == "actor":
-                nn.init.orthogonal_(linear_layer.weight, gain=1.414)
+                nn.init.orthogonal_(linear_layer.weight, gain=gain)
                 linear_layer.bias.data.fill_(0.0)
 
             elif initialization == "critic":
-                nn.init.orthogonal_(linear_layer.weight, gain=1.414)
+                nn.init.orthogonal_(linear_layer.weight, gain=gain)
                 linear_layer.bias.data.fill_(0.0)
 
             model += (

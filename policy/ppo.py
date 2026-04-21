@@ -26,6 +26,8 @@ class PPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.9,
         K: int = 5,
+        pos_idx: list = None,
+        goal_idx: list = None,
         device=torch.device("cpu"),
     ):
         super().__init__(device=device)
@@ -49,6 +51,9 @@ class PPO_Learner(Base):
         self.actor = actor
         self.critic = critic
 
+        # State normalisation — goal dims are synced to achieved_goal stats after each update
+        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
+
         self.optimizer = torch.optim.Adam(
             [
                 {"params": self.actor.parameters(), "lr": lr},
@@ -67,6 +72,7 @@ class PPO_Learner(Base):
 
     def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
+        state = self._normalize_obs(state)
         a, metaData = self.actor(state, deterministic=deterministic)
 
         return a, {
@@ -92,6 +98,12 @@ class PPO_Learner(Base):
         terminations = self.preprocess_state(batch["terminations"])
         truncations = self.preprocess_state(batch["truncations"])
         old_logprobs = self.preprocess_state(batch["logprobs"])
+
+        # Update running obs stats from this batch, sync goal dims, then normalise
+        if self.obs_rms is not None:
+            self.obs_rms.update(states.detach().cpu().numpy())
+            self._sync_goal_stats()
+        states = self._normalize_obs(states)
 
         # FOR HRL option pretraining
         int_reward_fn = kwargs.get("intrinsic_reward_fn")
