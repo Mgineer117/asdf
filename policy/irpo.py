@@ -374,7 +374,7 @@ class IRPO_Learner(Base):
 
             while not done and step_count < max_steps:
                 with torch.no_grad():
-                    a, _ = policy(state, deterministic=True)
+                    a, _ = policy(state)
                     a = a.cpu().numpy().flatten()
 
                 state, _, term, trunc, _ = env.step(a)
