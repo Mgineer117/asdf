@@ -16,10 +16,6 @@ EPI_LENGTH = {
     "fetchpush": 50,
     "fetchpusheasy": 100,  # longer horizon to compensate for smaller ranges
     "pacman": 1000,
-    "ant": 1000,
-    "walker": 1000,
-    "hopper": 1000,
-    "halfcheetah": 1000,
 }
 
 POS_IDX = {
@@ -28,15 +24,9 @@ POS_IDX = {
     "pointmaze": [-4, -3],
     "antmaze": [-4, -3],
     "fetchreach": [-6, -5, -4],
-    # fetchpush/fetchpusheasy: state = [obs(25), achieved_goal(3), desired_goal(3)]
-    # achieved_goal = block (x,y,z) position = indices [-6, -5, -4]
     "fetchpush": [-6, -5, -4],
     "fetchpusheasy": [-6, -5, -4],
     "pacman": None,
-    "ant": [14],
-    "walker": [9],
-    "hopper": [6],
-    "halfcheetah": [9],
 }
 
 GOAL_IDX = {
@@ -45,48 +35,43 @@ GOAL_IDX = {
     "pointmaze": [-2, -1],
     "antmaze": [-2, -1],
     "fetchreach": [-3, -2, -1],
-    # fetchpush/fetchpusheasy: desired_goal = target block position = last 3 dims
     "fetchpush": [-3, -2, -1],
     "fetchpusheasy": [-3, -2, -1],
     "pacman": None,
-    "ant": [14],
-    "walker": [9],
-    "hopper": [6],
-    "halfcheetah": [9],
 }
 
 
 POINTMAZE_MAPS = {
     "pointmaze-v1": [
         [1, 1, 1, 1, 1, 1],
-        [1, "c", 1, "c", 0, 1],
+        [1, "r", 1, "g", 0, 1],
         [1, 0, 1, 1, 0, 1],
         [1, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1],
     ],
     "pointmaze-v2": [
         [1, 1, 1, 1, 1, 1],
-        [1, "c", 0, 0, 0, 1],
+        [1, "r", 0, 0, 0, 1],
         [1, 1, 1, 1, 0, 1],
-        [1, "c", 0, 0, 0, 1],
+        [1, "g", 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1],
     ],
     "pointmaze-v3": [
         [1, 1, 1, 1, 1, 1],
-        [1, "c", 0, 0, 0, 1],
+        [1, "r", 0, 0, 0, 1],
         [1, 1, 1, 1, 0, 1],
-        [1, "c", 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 0, 1],
-        [1, "c", 0, 0, 0, 1],
+        [1, "g", 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1],
     ],
     "pointmaze-v4": [
         [1, 1, 1, 1, 1, 1],
-        [1, 0, "c", 1, "c", 1],
+        [1, 0, "r", 1, 0, 1],
         [1, 0, 1, 1, 0, 1],
         [1, 0, 0, 0, 0, 1],
         [1, 0, 1, 1, 0, 1],
-        [1, "c", 1, "c", 0, 1],
+        [1, 0, 1, "g", 0, 1],
         [1, 1, 1, 1, 1, 1],
     ],
 }
