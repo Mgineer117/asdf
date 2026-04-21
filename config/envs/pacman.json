@@ -1,0 +1,12 @@
+{
+    "hl_timesteps": 1.5e8,
+    "sub_timesteps": 5e7,
+    "timesteps": 3e8,
+    "gamma": 0.999,
+    "num_options": 3,
+    "int_reward_type": "allo",
+    "batch_size": 8192,
+    "num_minibatch": 4,
+    "minibatch_size": 2048,
+    "discount_sampling_factor": 0.999
+}
