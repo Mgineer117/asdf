@@ -17,7 +17,7 @@ class PPO_Actor(Base):
         hidden_dim: list,
         action_dim: int,
         is_discrete: bool,
-        activation: nn.Module = nn.Tanh(),
+        activation: nn.Module = nn.ReLU(),
         pos_idx: list | None = None,
         goal_idx: list | None = None,
         use_relative_goal: bool = False,
