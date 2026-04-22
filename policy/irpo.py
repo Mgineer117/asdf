@@ -697,7 +697,7 @@ class IRPO_G_Learner(IRPO_Learner):
         self.name = "IRPO_G"
         self.num_goals = NUM_GOALS.get(env_name, None)
         assert (
-            self.num_goals is None
+            self.num_goals is not None
         ), f"Number of goals for environment {env_name} not found in NUM_GOALS dictionary."
         assert self.num_options == 1, (
             f"IRPO_G_Learner requires exactly 1 intrinsic reward (got {self.num_options}). "
