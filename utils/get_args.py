@@ -13,7 +13,15 @@ def override_args(init_args):
     # copy args
     args = deepcopy(init_args)
     env_name, _, version = args.env_name.partition("-")
-    env_config_path = f"config/envs/{env_name}.json"
+    # Goal-conditioned variants inherit config from their base env
+    _g_to_base = {
+        "fourroomsG": "fourrooms",
+        "mazeG": "maze",
+        "pointmazeG": "pointmaze",
+        "antmazeG": "antmaze",
+    }
+    config_env_name = _g_to_base.get(env_name, env_name)
+    env_config_path = f"config/envs/{config_env_name}.json"
     algo_config_path = f"config/algos/{args.algo_name}.json"
 
     env_params = load_hyperparams(file_path=env_config_path)
