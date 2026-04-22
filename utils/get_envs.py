@@ -147,7 +147,7 @@ def get_env(args):
         args.action_dim = env.action_space.shape[0]
     elif env_name in ["pacman"]:
         # observation_space.shape is (encoder_dim,) after ArcadeWrapper encoding
-        args.state_dim = env.observation_space.shape[0]
+        args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.n
     elif env_name in ["ant", "walker", "halfcheetah", "hopper"]:
         args.state_dim = (env.observation_space.shape[0] + len(args.pos_idx),)
