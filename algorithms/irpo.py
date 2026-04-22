@@ -90,8 +90,6 @@ class IRPO_Algorithm(nn.Module):
 
     def define_base_policy(self):
         # === Define policy === #
-        pos_idx = self.args.pos_idx if self.goal_conditioned else None
-        goal_idx = self.args.goal_idx if self.goal_conditioned else None
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
@@ -116,8 +114,6 @@ class IRPO_Algorithm(nn.Module):
             gae=self.args.gae,
             device=self.args.device,
             anneal_kl=self.args.anneal_kl,
-            pos_idx=pos_idx,
-            goal_idx=goal_idx,
         )
 
         if self.goal_conditioned:

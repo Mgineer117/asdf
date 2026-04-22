@@ -77,7 +77,6 @@ class PPO_Actor(Base):
         deterministic: bool = False,
     ):
         state = self.preprocess_state(state)
-        state = self._normalize_obs(state)
 
         # --- Universal Image Reshape Logic ---
         if isinstance(self.input_shape, (tuple, list)):
@@ -256,7 +255,6 @@ class PPO_Critic(Base):
 
     def forward(self, x: torch.Tensor):
         x = self.preprocess_state(x)
-        x = self._normalize_obs(x)
 
         # --- Universal Image Reshape Logic ---
         if isinstance(self.input_shape, (tuple, list)):

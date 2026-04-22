@@ -23,17 +23,6 @@ class Base(nn.Module):
         self.state_visitation = None
 
     def setup_obs_rms(self, state_dim, pos_idx=None, goal_idx=None):
-        """
-        Setup split running statistics for goal-conditioned vector states.
-
-        The state is partitioned into:
-        - obs_idx: all dimensions that are not in pos_idx or goal_idx
-        - pos_idx: achieved-position dimensions
-        - goal_idx: desired-goal dimensions
-
-        obs_idx uses its own normalizer. goal_idx shares the same normalizer as
-        pos_idx so goal and achieved position are scaled identically.
-        """
         from utils.wrapper import RunningMeanStd
 
         self.obs_rms = None
@@ -42,7 +31,6 @@ class Base(nn.Module):
         self._rms_pos_idx = None
         self._rms_goal_idx = None
 
-        # Skip non-goal-conditioned cases and image inputs.
         if pos_idx is None or goal_idx is None:
             return
         if isinstance(state_dim, (tuple, list)) and len(state_dim) >= 2:
@@ -66,7 +54,9 @@ class Base(nn.Module):
         self.pos_rms = RunningMeanStd(shape=(len(self._rms_pos_idx),))
 
     def update_obs_rms(self, x: torch.Tensor | np.ndarray):
-        if self._rms_pos_idx is None or self._rms_goal_idx is None:
+        if not hasattr(self, "_rms_pos_idx") or self._rms_pos_idx is None:
+            return
+        if not hasattr(self, "_rms_goal_idx") or self._rms_goal_idx is None:
             return
 
         if isinstance(x, torch.Tensor):
@@ -86,21 +76,27 @@ class Base(nn.Module):
         return
 
     def _normalize_obs(self, x: torch.Tensor) -> torch.Tensor:
-        """Normalize goal-conditioned vector observations; otherwise no-op."""
-        if self._rms_pos_idx is None or self._rms_goal_idx is None:
+        if not hasattr(self, "_rms_pos_idx") or self._rms_pos_idx is None:
+            return x
+        if not hasattr(self, "_rms_goal_idx") or self._rms_goal_idx is None:
             return x
         if x.ndim != 2:
             return x
 
-        out = x.clone() if isinstance(x, torch.Tensor) else np.array(x, copy=True)
+        out = x.clone()
+        dev = x.device
 
         if self.obs_rms is not None and len(self._rms_obs_idx) > 0:
-            out[:, self._rms_obs_idx] = self.obs_rms.normalize(x[:, self._rms_obs_idx])
+            norm = self.obs_rms.normalize(x[:, self._rms_obs_idx])
+            if isinstance(norm, np.ndarray):
+                norm = torch.as_tensor(norm, dtype=x.dtype, device=dev)
+            out[:, self._rms_obs_idx] = norm.to(dev)
         if self.pos_rms is not None:
-            out[:, self._rms_pos_idx] = self.pos_rms.normalize(x[:, self._rms_pos_idx])
-            out[:, self._rms_goal_idx] = self.pos_rms.normalize(
-                x[:, self._rms_goal_idx]
-            )
+            for idx_list in (self._rms_pos_idx, self._rms_goal_idx):
+                norm = self.pos_rms.normalize(x[:, idx_list])
+                if isinstance(norm, np.ndarray):
+                    norm = torch.as_tensor(norm, dtype=x.dtype, device=dev)
+                out[:, idx_list] = norm.to(dev)
         return out
 
     def sync_obs_rms_to(self, *modules):

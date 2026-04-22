@@ -39,8 +39,6 @@ class IRPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.95,
         anneal_kl: bool = True,
-        pos_idx: list = None,
-        goal_idx: list = None,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -104,13 +102,6 @@ class IRPO_Learner(Base):
 
         # Storage for the best policies found during exploration (for inference/eval)
         self.final_exp_policies = [deepcopy(actor) for _ in range(self.num_options)]
-        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
-        self.sync_obs_rms_to(
-            self.actor,
-            self.ext_critics,
-            self.int_critics,
-            self.final_exp_policies,
-        )
 
         self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
@@ -217,13 +208,6 @@ class IRPO_Learner(Base):
         init_batch, init_sample_time = sampler.collect_samples(env, self.actor, seed)
         total_sample_time += init_sample_time  # Track initial sample
         # self.actor.record_state_visitations(init_batch["states"], alpha=1.0)
-        self.update_obs_rms(init_batch["states"])
-        self.sync_obs_rms_to(
-            self.actor,
-            self.ext_critics,
-            self.int_critics,
-            self.final_exp_policies,
-        )
 
         total_timesteps += init_batch["states"].shape[0]
 
@@ -242,7 +226,6 @@ class IRPO_Learner(Base):
                 batches = [init_batch for _ in active_indices]
                 timesteps = 0
             else:
-                self.sync_obs_rms_to(actors)
                 batches, current_sample_time = sampler.collect_samples(
                     env, actors, seed
                 )
@@ -427,8 +410,6 @@ class IRPO_Learner(Base):
 
         # Preprocessing data
         states = self.preprocess_state(batch["states"])
-        self.update_obs_rms(states)
-        self.sync_obs_rms_to(actor, self.ext_critics[i], self.int_critics[i])
         actions = self.preprocess_state(batch["actions"])
         ext_rewards = self.preprocess_state(batch["rewards"])
         int_rewards = self.preprocess_state(batch["int_rewards"][:, i : i + 1])
@@ -574,7 +555,6 @@ class IRPO_Learner(Base):
     ):
         if self.base_policy_update_type == "trpo":
             states = self.preprocess_state(states)
-            self.sync_obs_rms_to(self.actor)
             old_actor = deepcopy(self.actor)
 
             # Flatten the aggregated gradients
