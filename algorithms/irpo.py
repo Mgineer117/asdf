@@ -117,7 +117,7 @@ class IRPO_Algorithm(nn.Module):
         )
 
         if self.goal_conditioned:
-            self.policy = IRPO_G_Learner(**shared_kwargs)
+            self.policy = IRPO_G_Learner(self.args.env_name, **shared_kwargs)
         else:
             self.policy = IRPO_Learner(
                 aggregation_method=self.args.aggregation_method,

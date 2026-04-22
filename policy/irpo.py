@@ -16,6 +16,24 @@ from utils.rl import *
 from utils.sampler import OnlineSampler
 
 
+NUM_GOALS = {
+    "fourroomsG-v1": 4,
+    "mazeG-v1": 3,
+    "mazeG-v2": 4,
+    "mazeG-v3": 4,
+    "pointmazeG-v1": 2,
+    "pointmazeG-v2": 2,
+    "pointmazeG-v3": 3,
+    "pointmazeG-v4": 4,
+    "antmazeG-v1": 2,
+    "antmazeG-v2": 2,
+    "antmazeG-v3": 2,
+    "antmazeG-v4": 3,
+    "antmazeG-v5": 3,
+    "antmazeG-v6": 2,
+}
+
+
 class IRPO_Learner(Base):
 
     def __init__(
@@ -641,6 +659,7 @@ class IRPO_G_Learner(IRPO_Learner):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        env_name: str,
         beta: float,
         intrinsic_reward_fn: BaseIntRewardFunctions,
         noise_std: float,
@@ -676,6 +695,10 @@ class IRPO_G_Learner(IRPO_Learner):
             device=device,
         )
         self.name = "IRPO_G"
+        self.num_goals = NUM_GOALS.get(env_name, None)
+        assert (
+            self.num_goals is None
+        ), f"Number of goals for environment {env_name} not found in NUM_GOALS dictionary."
         assert self.num_options == 1, (
             f"IRPO_G_Learner requires exactly 1 intrinsic reward (got {self.num_options}). "
             "Use ALLOIntRewardFunctionG or RandomIntRewardFunctionsG."
@@ -691,7 +714,7 @@ class IRPO_G_Learner(IRPO_Learner):
             "dist": metaData["dist"],
         }
 
-    def _goal_gradient_conflict_figure(self, batch, actor, n_clusters=6):
+    def _goal_gradient_conflict_figure(self, batch, actor, n_clusters=None):
         """
         For each goal cluster in the batch, compute the true advantage-weighted
         policy-gradient direction ∇_θ E[log π(a|s) · Â(s,a)], then measure
@@ -738,7 +761,10 @@ class IRPO_G_Learner(IRPO_Learner):
                 advantages = (ext_adv + int_adv).detach()  # (T, 1)
 
             goals_np = states[:, goal_idx].detach().cpu().numpy()  # (T, g)
-            n_clusters = min(n_clusters, max(2, len(np.unique(goals_np, axis=0))))
+            env_name = getattr(self.intrinsic_reward_fn.args, "env_name", "")
+            n_clusters = NUM_GOALS.get(
+                env_name, n_clusters if n_clusters is not None else 6
+            )
 
             kmeans = KMeans(n_clusters=n_clusters, n_init=5, random_state=0)
             labels = kmeans.fit_predict(goals_np)
