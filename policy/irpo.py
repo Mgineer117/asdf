@@ -47,8 +47,8 @@ class IRPO_Learner(Base):
         # find_lr: bool,
         num_exp_updates: int,
         base_policy_update_type: str = "trpo",
-        lr: float = 3e-4,
-        critic_lr: float = 3e-4,
+        lr: float = 1e-2,
+        critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
         # base_target_kl: float = 0.001,
@@ -450,7 +450,7 @@ class IRPO_Learner(Base):
 
         # Critic Mini-batch Updates
         batch_size = states.shape[0]
-        critic_epochs = 5  # Number of passes over the data
+        critic_epochs = 20  # Number of passes over the data
         num_minibatches = 4  # Split data into 4 chunks per epoch
         mb_size = max(1, batch_size // num_minibatches)
 
@@ -729,7 +729,9 @@ class IRPO_G_Learner(IRPO_Learner):
             offset += numel
         return tuple(result)
 
-    def learn_exploratory_policy(self, actor: nn.Module, batch: dict, i: int, flag: bool):
+    def learn_exploratory_policy(
+        self, actor: nn.Module, batch: dict, i: int, flag: bool
+    ):
         from sklearn.cluster import KMeans
 
         t0 = time.time()
@@ -746,12 +748,20 @@ class IRPO_G_Learner(IRPO_Learner):
             int_values = self.int_critics[i](states)
 
             ext_advantages, ext_returns = estimate_advantages(
-                ext_rewards, terminations, truncations, ext_values,
-                gamma=self.gamma, gae=self.gae,
+                ext_rewards,
+                terminations,
+                truncations,
+                ext_values,
+                gamma=self.gamma,
+                gae=self.gae,
             )
             int_advantages, int_returns = estimate_advantages(
-                int_rewards, terminations, truncations, int_values,
-                gamma=self.gamma, gae=self.gae,
+                int_rewards,
+                terminations,
+                truncations,
+                int_values,
+                gamma=self.gamma,
+                gae=self.gae,
             )
 
         batch_size = states.shape[0]
@@ -807,8 +817,10 @@ class IRPO_G_Learner(IRPO_Learner):
 
                     loss_c = self.actor_loss(actor, mb_states, mb_actions, mb_adv)
                     grads_c = torch.autograd.grad(
-                        loss_c, tuple(actor.parameters()),
-                        create_graph=True, allow_unused=True,
+                        loss_c,
+                        tuple(actor.parameters()),
+                        create_graph=True,
+                        allow_unused=True,
                     )
                     grads_c = tuple(
                         g if g is not None else torch.zeros_like(p)
@@ -827,8 +839,10 @@ class IRPO_G_Learner(IRPO_Learner):
         else:
             actor_loss_full = self.actor_loss(actor, states, actions, advantages_norm)
             gradients = torch.autograd.grad(
-                actor_loss_full, tuple(actor.parameters()),
-                create_graph=True, allow_unused=True,
+                actor_loss_full,
+                tuple(actor.parameters()),
+                create_graph=True,
+                allow_unused=True,
             )
             gradients = tuple(
                 g if g is not None else torch.zeros_like(p)
@@ -843,7 +857,9 @@ class IRPO_G_Learner(IRPO_Learner):
             self.final_exp_policies[i] = actor_clone
 
         with torch.no_grad():
-            actor_loss_val = self.actor_loss(actor, states, actions, advantages_norm).item()
+            actor_loss_val = self.actor_loss(
+                actor, states, actions, advantages_norm
+            ).item()
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss_val,
