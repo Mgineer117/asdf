@@ -4,8 +4,10 @@ from policy.irpo import IRPO_G_Learner, IRPO_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.intrinsic_rewards import (
+    ALLOIntRewardFunctions,
     ALLOIntRewardFunctionG,
     ArbitraryIntRewardFunctions,
+    RandomIntRewardFunctions,
     RandomIntRewardFunctionsG,
 )
 from utils.sampler import OnlineSampler
@@ -21,18 +23,31 @@ class IRPO_Algorithm(nn.Module):
         self.args = args
 
         mode = getattr(args, "kernel_mode", "cosine")
+        self.goal_conditioned = getattr(args, "is_goal_conditioned", False)
 
         if self.args.int_reward_type == "allo":
-            self.intrinsic_reward_fn = ALLOIntRewardFunctionG(
-                logger=logger, writer=writer, args=args, mode=mode
-            )
+            if self.goal_conditioned:
+                self.intrinsic_reward_fn = ALLOIntRewardFunctionG(
+                    logger=logger, writer=writer, args=args, mode=mode
+                )
+            else:
+                self.intrinsic_reward_fn = ALLOIntRewardFunctions(
+                    logger=logger, writer=writer, args=args
+                )
         elif self.args.int_reward_type == "random":
-            self.intrinsic_reward_fn = RandomIntRewardFunctionsG(
-                logger=logger,
-                writer=writer,
-                args=args,
-                mode=getattr(args, "kernel_mode", "rbf"),
-            )
+            if self.goal_conditioned:
+                self.intrinsic_reward_fn = RandomIntRewardFunctionsG(
+                    logger=logger,
+                    writer=writer,
+                    args=args,
+                    mode=getattr(args, "kernel_mode", "rbf"),
+                )
+            else:
+                self.intrinsic_reward_fn = RandomIntRewardFunctions(
+                    logger=logger,
+                    writer=writer,
+                    args=args,
+                )
         elif self.args.int_reward_type == "arbitrary":
             self.intrinsic_reward_fn = ArbitraryIntRewardFunctions(
                 logger=logger, writer=writer, args=args, target=5.0
@@ -41,8 +56,6 @@ class IRPO_Algorithm(nn.Module):
             raise NotImplementedError(
                 f"Intrinsic reward type '{self.args.int_reward_type}' not implemented."
             )
-
-        self.goal_conditioned = getattr(args, "is_goal_conditioned", False)
 
         self.current_timesteps = self.intrinsic_reward_fn.current_timesteps
 
