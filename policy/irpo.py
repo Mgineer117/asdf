@@ -714,6 +714,167 @@ class IRPO_G_Learner(IRPO_Learner):
             "dist": metaData["dist"],
         }
 
+    @staticmethod
+    def _pcgrad_surgery(grad_list: list) -> tuple:
+        """
+        PCGrad: for each per-goal gradient g_i, project out components
+        that conflict (negative dot product) with every other g_j (j≠i).
+        Returns the element-wise mean of surgered gradients as a tuple
+        matching the shape of grad_list[0].
+        """
+        flat = [torch.cat([g.flatten() for g in grads]) for grads in grad_list]
+
+        surgered = []
+        for i in range(len(flat)):
+            g_i = flat[i].clone()
+            for j in range(len(flat)):
+                if i == j:
+                    continue
+                g_j = flat[j]
+                dot = torch.dot(g_i, g_j)
+                if dot < 0:
+                    g_i = g_i - (dot / (g_j.dot(g_j) + 1e-8)) * g_j
+            surgered.append(g_i)
+
+        mean_grad = torch.stack(surgered).mean(0)
+
+        result, offset = [], 0
+        for g in grad_list[0]:
+            numel = g.numel()
+            result.append(mean_grad[offset : offset + numel].view(g.shape))
+            offset += numel
+        return tuple(result)
+
+    def learn_exploratory_policy(self, actor: nn.Module, batch: dict, i: int, flag: bool):
+        from sklearn.cluster import KMeans
+
+        t0 = time.time()
+
+        states = self.preprocess_state(batch["states"])
+        actions = self.preprocess_state(batch["actions"])
+        ext_rewards = self.preprocess_state(batch["rewards"])
+        int_rewards = self.preprocess_state(batch["int_rewards"][:, i : i + 1])
+        terminations = self.preprocess_state(batch["terminations"])
+        truncations = self.preprocess_state(batch["truncations"])
+
+        with torch.no_grad():
+            ext_values = self.ext_critics[i](states)
+            int_values = self.int_critics[i](states)
+
+            ext_advantages, ext_returns = estimate_advantages(
+                ext_rewards, terminations, truncations, ext_values,
+                gamma=self.gamma, gae=self.gae,
+            )
+            int_advantages, int_returns = estimate_advantages(
+                int_rewards, terminations, truncations, int_values,
+                gamma=self.gamma, gae=self.gae,
+            )
+
+        batch_size = states.shape[0]
+        critic_epochs, num_minibatches = 5, 4
+        mb_size = max(1, batch_size // num_minibatches)
+
+        ext_critic = self.ext_critics[i]
+        ext_optim = self.ext_critic_optim[i]
+        int_critic = self.int_critics[i]
+        int_optim = self.int_critic_optim[i]
+        ext_losses, int_losses = [], []
+
+        for _ in range(critic_epochs):
+            perm = torch.randperm(batch_size)
+            for start in range(0, batch_size, mb_size):
+                idx = perm[start : start + mb_size]
+                ext_loss = self.critic_loss(ext_critic, states[idx], ext_returns[idx])
+                ext_optim.zero_grad()
+                ext_loss.backward()
+                ext_optim.step()
+                ext_losses.append(ext_loss.item())
+                int_loss = self.critic_loss(int_critic, states[idx], int_returns[idx])
+                int_optim.zero_grad()
+                int_loss.backward()
+                int_optim.step()
+                int_losses.append(int_loss.item())
+
+        ext_critic_loss = sum(ext_losses) / len(ext_losses)
+        int_critic_loss = sum(int_losses) / len(int_losses)
+
+        actor_clone = deepcopy(actor)
+        advantages = ext_advantages if flag else int_advantages
+        advantages_norm = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        goal_idx = getattr(self.intrinsic_reward_fn.args, "goal_idx", None)
+        per_goal_grads = None
+
+        if goal_idx is not None:
+            try:
+                goals_np = states[:, goal_idx].detach().cpu().numpy()
+                kmeans = KMeans(n_clusters=self.num_goals, n_init=5, random_state=0)
+                labels = kmeans.fit_predict(goals_np)
+
+                per_goal_grads = []
+                for c in range(self.num_goals):
+                    mask = torch.from_numpy(labels == c).to(states.device)
+                    if mask.sum() < 4:
+                        continue
+                    mb_states = states[mask].detach()
+                    mb_actions = actions[mask].detach()
+                    mb_adv = advantages[mask]
+                    mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
+
+                    loss_c = self.actor_loss(actor, mb_states, mb_actions, mb_adv)
+                    grads_c = torch.autograd.grad(
+                        loss_c, tuple(actor.parameters()),
+                        create_graph=True, allow_unused=True,
+                    )
+                    grads_c = tuple(
+                        g if g is not None else torch.zeros_like(p)
+                        for p, g in zip(actor.parameters(), grads_c)
+                    )
+                    per_goal_grads.append(grads_c)
+
+            except Exception as e:
+                print(f"[WARNING] PCGrad cluster step failed, falling back: {e}")
+                per_goal_grads = None
+
+        if per_goal_grads is not None and len(per_goal_grads) >= 2:
+            gradients = self._pcgrad_surgery(per_goal_grads)
+        elif per_goal_grads is not None and len(per_goal_grads) == 1:
+            gradients = per_goal_grads[0]
+        else:
+            actor_loss_full = self.actor_loss(actor, states, actions, advantages_norm)
+            gradients = torch.autograd.grad(
+                actor_loss_full, tuple(actor.parameters()),
+                create_graph=True, allow_unused=True,
+            )
+            gradients = tuple(
+                g if g is not None else torch.zeros_like(p)
+                for p, g in zip(actor.parameters(), gradients)
+            )
+
+        with torch.no_grad():
+            for p, g in zip(actor_clone.parameters(), gradients):
+                p -= self.lr * g
+
+        if flag:
+            self.final_exp_policies[i] = actor_clone
+
+        with torch.no_grad():
+            actor_loss_val = self.actor_loss(actor, states, actions, advantages_norm).item()
+
+        loss_dict = {
+            f"{self.name}/loss/actor_loss": actor_loss_val,
+            f"{self.name}/loss/ext_critic_loss": ext_critic_loss,
+            f"{self.name}/loss/int_critic_loss": int_critic_loss,
+        }
+
+        return {
+            "loss_dict": loss_dict,
+            "update_time": time.time() - t0,
+            "updated_actor": actor_clone,
+            "gradients": gradients,
+            "ext_return": ext_returns.mean().item(),
+        }
+
     def _goal_gradient_conflict_figure(self, batch, actor, n_clusters=None):
         """
         For each goal cluster in the batch, compute the true advantage-weighted
