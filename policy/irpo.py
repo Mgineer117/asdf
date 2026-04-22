@@ -51,7 +51,6 @@ class IRPO_Learner(Base):
         critic_lr: float = 3e-4,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
-        lock_threshold: float = 0.66,
         # base_target_kl: float = 0.001,
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
@@ -82,8 +81,6 @@ class IRPO_Learner(Base):
         self.gae = gae
         self.target_kl = target_kl  # Constraint for TRPO
         self.init_target_kl = target_kl
-        self.lock_threshold = lock_threshold
-        self.locked_option_idx = None
         # self.base_target_kl = base_target_kl
         self.l2_reg = l2_reg
         self.anneal_kl = anneal_kl
@@ -131,11 +128,7 @@ class IRPO_Learner(Base):
     def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
 
-        best_idx = (
-            self.locked_option_idx
-            if self.locked_option_idx is not None
-            else torch.argmax(self.perf_gains).item()
-        )
+        best_idx = torch.argmax(self.perf_gains).item()
         actor = self.final_exp_policies[best_idx]
         a, metaData = actor(state, deterministic=deterministic)
 
@@ -210,15 +203,7 @@ class IRPO_Learner(Base):
         total_timesteps, total_sample_time = 0, 0
         total_exp_update_time, total_backprop_time, total_base_update_time = 0, 0, 0
 
-        # --- Option Lock-in (Late stage fine-tuning) ---
-        if learning_progress >= self.lock_threshold and self.locked_option_idx is None:
-            self.locked_option_idx = torch.argmax(self.perf_gains).item()
-
-        # --- Select active options ---
-        if self.locked_option_idx is not None:
-            active_indices = [self.locked_option_idx]
-        else:
-            active_indices = self.policy_indices
+        active_indices = self.policy_indices
 
         policy_dict, gradient_dict = self.init_exp_policies(), {}
 
@@ -288,10 +273,9 @@ class IRPO_Learner(Base):
         t_backprop_start = time.time()
 
         greedy_idx = torch.argmax(self.perf_gains).item()
-        if self.locked_option_idx is not None:
-            temperature = 1e-8
-        else:
-            temperature = max(1e-8, 1.0 - (learning_progress / self.lock_threshold))
+        # Temperature anneals linearly from 1.0 → 0 over the first 20 % of training,
+        # then stays effectively at 0 (argmax) for the remaining 80 %.
+        temperature = max(1e-8, 1.0 - learning_progress / 0.2)
 
         if temperature <= 1e-8 or len(active_indices) == 1:
             active_gains = self.perf_gains[active_indices]
