@@ -203,7 +203,7 @@ class PPO_Critic(nn.Module):
         activation: nn.Module = nn.Tanh(),
         device=torch.device("cpu"),
     ):
-        super().__init__(device=device)
+        super().__init__()
 
         self.hidden_dim = hidden_dim
 
