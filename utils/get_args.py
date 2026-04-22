@@ -135,7 +135,7 @@ def get_args():
     parser.add_argument(
         "--actor-fc-dim",
         type=int,
-        default=[128, 128],
+        default=[100, 50, 25],
         nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Actor network.",
     )
