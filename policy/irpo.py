@@ -705,7 +705,7 @@ class IRPO_G_Learner(IRPO_Learner):
             return None, {}
 
         try:
-            states = self.preprocess_state(batch["states"])    # (T, D)
+            states = self.preprocess_state(batch["states"])  # (T, D)
             actions = self.preprocess_state(batch["actions"])  # (T, A)
             terminations = self.preprocess_state(batch["terminations"])
             truncations = self.preprocess_state(batch["truncations"])
@@ -720,12 +720,20 @@ class IRPO_G_Learner(IRPO_Learner):
                 int_values = self.int_critics[0](states)
 
                 ext_adv, _ = estimate_advantages(
-                    ext_rewards, terminations, truncations, ext_values,
-                    gamma=self.gamma, gae=self.gae,
+                    ext_rewards,
+                    terminations,
+                    truncations,
+                    ext_values,
+                    gamma=self.gamma,
+                    gae=self.gae,
                 )
                 int_adv, _ = estimate_advantages(
-                    int_rewards, terminations, truncations, int_values,
-                    gamma=self.gamma, gae=self.gae,
+                    int_rewards,
+                    terminations,
+                    truncations,
+                    int_values,
+                    gamma=self.gamma,
+                    gae=self.gae,
                 )
                 advantages = (ext_adv + int_adv).detach()  # (T, 1)
 
@@ -756,11 +764,13 @@ class IRPO_G_Learner(IRPO_Learner):
                 loss = -(logprobs * mb_adv).mean()
                 loss.backward()
 
-                flat = torch.cat([
-                    p.grad.detach().cpu().flatten()
-                    for p in probe.parameters()
-                    if p.grad is not None
-                ])
+                flat = torch.cat(
+                    [
+                        p.grad.detach().cpu().flatten()
+                        for p in probe.parameters()
+                        if p.grad is not None
+                    ]
+                )
                 grad_vecs.append(flat)
                 valid_clusters.append(c)
                 del probe
@@ -791,28 +801,44 @@ class IRPO_G_Learner(IRPO_Learner):
             axes[0].set_title(
                 f"Cosine Similarity  (conflict={conflict_frac:.2f}, mean={mean_cos:.3f})"
             )
-            axes[0].set_xticks(range(n)); axes[0].set_xticklabels(tick_labels)
-            axes[0].set_yticks(range(n)); axes[0].set_yticklabels(tick_labels)
+            axes[0].set_xticks(range(n))
+            axes[0].set_xticklabels(tick_labels)
+            axes[0].set_yticks(range(n))
+            axes[0].set_yticklabels(tick_labels)
             plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
             for i in range(n):
                 for j in range(n):
-                    axes[0].text(j, i, f"{cos_sim[i,j]:.2f}",
-                                 ha="center", va="center", fontsize=7)
+                    axes[0].text(
+                        j,
+                        i,
+                        f"{cos_sim[i,j]:.2f}",
+                        ha="center",
+                        va="center",
+                        fontsize=7,
+                    )
 
             im1 = axes[1].imshow(angles, vmin=0, vmax=180, cmap="hot_r")
             axes[1].set_title("Gradient Angle (°)")
-            axes[1].set_xticks(range(n)); axes[1].set_xticklabels(tick_labels)
-            axes[1].set_yticks(range(n)); axes[1].set_yticklabels(tick_labels)
+            axes[1].set_xticks(range(n))
+            axes[1].set_xticklabels(tick_labels)
+            axes[1].set_yticks(range(n))
+            axes[1].set_yticklabels(tick_labels)
             plt.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
             for i in range(n):
                 for j in range(n):
-                    axes[1].text(j, i, f"{angles[i,j]:.0f}°",
-                                 ha="center", va="center", fontsize=7)
+                    axes[1].text(
+                        j,
+                        i,
+                        f"{angles[i,j]:.0f}°",
+                        ha="center",
+                        va="center",
+                        fontsize=7,
+                    )
 
             plt.tight_layout()
             fig.canvas.draw()
-            buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-            buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+            buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (4,))[..., :3]
             plt.close(fig)
 
             metrics = {
@@ -946,32 +972,9 @@ class IRPO_G_Learner(IRPO_Learner):
         if conflict_img is not None:
             image_dict["goal_gradient_conflict"] = conflict_img
 
-        supp_dict = {}
-        eval_seed = random.randint(0, 10000)  # New seed for rendering
-        state, _ = env.reset(seed=eval_seed)
-        frames = []
-        img = env.render()
-        if img is not None:
-            frames.append(img)
-        done, step_count = False, 0
-        max_steps = getattr(env, "max_steps", 1000)
-        while not done and step_count < max_steps:
-            with torch.no_grad():
-                a, _ = self.final_exp_policies[0](state)
-                a = a.cpu().numpy().flatten()
-            state, _, term, trunc, _ = env.step(a)
-            done = term or trunc
-            step_count += 1
-            img = env.render()
-            if img is not None:
-                frames.append(img)
-        if frames:
-            supp_dict["rendering0"] = np.array(frames).transpose(0, 3, 1, 2)
-
         self.eval()
         return {
             "loss_dict": loss_dict,
             "timesteps": total_timesteps,
-            "supp_dict": supp_dict,
             "image_dict": image_dict,
         }
