@@ -434,10 +434,22 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         from policy.uniform_random import UniformRandom
         from trainer.extractor_trainer import ExtractorTrainer
 
+        # Goal-conditioned variants reuse the base env's trained models
+        _g_to_base = {
+            "fourroomsG": "fourrooms",
+            "mazeG": "maze",
+            "pointmazeG": "pointmaze",
+            "antmazeG": "antmaze",
+        }
+        base_name, _, version = self.args.env_name.partition("-")
+        model_env_name = _g_to_base.get(base_name, base_name)
+        if version:
+            model_env_name = f"{model_env_name}-{version}"
+
         if not os.path.exists("model"):
             os.makedirs("model")
-        if not os.path.exists(f"model/{self.args.env_name}"):
-            os.makedirs(f"model/{self.args.env_name}")
+        if not os.path.exists(f"model/{model_env_name}"):
+            os.makedirs(f"model/{model_env_name}")
 
         # === CREATE FEATURE EXTRACTOR === #
         feature_network = NeuralNet(
@@ -460,7 +472,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         )
 
         # Step 1: Search for .pth files in the directory
-        model_dir = f"model/{self.args.env_name}/"
+        model_dir = f"model/{model_env_name}/"
         pth_files = glob.glob(os.path.join(model_dir, "*.pth"))
 
         if not pth_files:
