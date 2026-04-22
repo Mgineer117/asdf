@@ -18,13 +18,25 @@ class PPO_Actor(Base):
         action_dim: int,
         is_discrete: bool,
         activation: nn.Module = nn.Tanh(),
+        pos_idx: list | None = None,
+        goal_idx: list | None = None,
+        use_relative_goal: bool = False,
         device=torch.device("cpu"),
     ):
         super().__init__(device=device)
 
         self.hidden_dim = hidden_dim
         self.action_dim = np.prod(action_dim)
+        # self.rms = RunningMeanStd(shape=input_dim)
         self.is_discrete = is_discrete
+        self.pos_idx = pos_idx
+        self.goal_idx = goal_idx
+        self.use_relative_goal = (
+            use_relative_goal
+            and pos_idx is not None
+            and goal_idx is not None
+            and len(pos_idx) == len(goal_idx)
+        )
 
         # Save the original input shape so we can rebuild flattened states
         self.input_shape = input_dim
@@ -54,6 +66,8 @@ class PPO_Actor(Base):
             # Vector input
             self.feature_extractor = nn.Identity()
             mlp_input_dim = np.prod(input_dim)
+            if self.use_relative_goal:
+                mlp_input_dim += len(self.goal_idx)
 
         # The MLP acts as the policy head
         self.model = MLP(
@@ -76,6 +90,7 @@ class PPO_Actor(Base):
         state: torch.Tensor,
         deterministic: bool = False,
     ):
+        # state = self.rms.normalize(state)
         state = self.preprocess_state(state)
 
         # --- Universal Image Reshape Logic ---
@@ -109,6 +124,9 @@ class PPO_Actor(Base):
 
         # Extract features (passes through CNN if image, or Identity if vector)
         features = self.feature_extractor(state)
+        if self.use_relative_goal and state.ndim == 2:
+            relative_goal = state[:, self.goal_idx] - state[:, self.pos_idx]
+            features = torch.cat((features, relative_goal), dim=-1)
 
         if self.is_discrete:
             a, metaData = self.discrete_forward(features, deterministic)
@@ -130,7 +148,7 @@ class PPO_Actor(Base):
         std = torch.exp(logstd.expand_as(mu))
         dist = Normal(loc=mu, scale=std)
 
-        a = dist.rsample()
+        a = mu if deterministic else dist.rsample()
 
         logprobs = dist.log_prob(a).unsqueeze(-1).sum(1)
         probs = torch.exp(logprobs)
@@ -195,7 +213,7 @@ class PPO_Actor(Base):
             return dist.entropy().unsqueeze(-1).sum(1)
 
 
-class PPO_Critic(nn.Module):
+class PPO_Critic(Base):
     def __init__(
         self,
         input_dim: Union[int, tuple, list],
@@ -203,7 +221,7 @@ class PPO_Critic(nn.Module):
         activation: nn.Module = nn.Tanh(),
         device=torch.device("cpu"),
     ):
-        super().__init__()
+        super().__init__(device=device)
 
         self.hidden_dim = hidden_dim
 
@@ -255,6 +273,7 @@ class PPO_Critic(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = self.preprocess_state(x)
+        x = self._normalize_obs(x)
 
         # --- Universal Image Reshape Logic ---
         if isinstance(self.input_shape, (tuple, list)):

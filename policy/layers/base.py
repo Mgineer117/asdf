@@ -144,7 +144,11 @@ class Base(nn.Module):
         elif not isinstance(state, torch.Tensor):
             raise ValueError("Unsupported state type. Must be a tensor or numpy array.")
 
-        state = state.to(self.device).to(self.dtype)
+        # Use the actual parameter device — self.device can be stale if the module
+        # was moved to a different device after construction (e.g. via parent.to(cuda)).
+        p = next(self.parameters(), None)
+        device = p.device if p is not None else self.device
+        state = state.to(device).to(self.dtype)
 
         # Ensure batch dimension exists for basic unbatched 1D vectors
         if state.ndim == 1:
