@@ -45,6 +45,10 @@ class OnPolicyTrainer(BaseTrainer):
                         frames = list(np.transpose(video_array, (0, 2, 3, 1)))
                         self.write_video(frames, self.current_step, "Video", key)
 
+                for key, img in info.get("image_dict", {}).items():
+                    if img is not None:
+                        self.write_image(img, self.current_step, "Image", key)
+
                 pbar.update(info["timesteps"])
 
                 if self.current_step >= self.eval_interval * (self.eval_idx + 1):

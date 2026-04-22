@@ -691,6 +691,140 @@ class IRPO_G_Learner(IRPO_Learner):
             "dist": metaData["dist"],
         }
 
+    def _goal_gradient_conflict_figure(self, batch, actor, n_clusters=6):
+        """
+        For each goal cluster in the batch, compute the true advantage-weighted
+        policy-gradient direction ∇_θ E[log π(a|s) · Â(s,a)], then measure
+        pairwise cosine similarities and angles.
+        Returns (img_hwc, metrics_dict) or (None, {}) on failure.
+        """
+        from sklearn.cluster import KMeans
+
+        goal_idx = getattr(self.intrinsic_reward_fn.args, "goal_idx", None)
+        if goal_idx is None:
+            return None, {}
+
+        try:
+            states = self.preprocess_state(batch["states"])    # (T, D)
+            actions = self.preprocess_state(batch["actions"])  # (T, A)
+            terminations = self.preprocess_state(batch["terminations"])
+            truncations = self.preprocess_state(batch["truncations"])
+
+            # Compute combined advantage (ext + int) from the trained critics.
+            # We use the same critics that learn_exploratory_policy uses (index 0).
+            with torch.no_grad():
+                ext_rewards = self.preprocess_state(batch["rewards"])
+                int_rewards = self.preprocess_state(batch["int_rewards"][:, 0:1])
+
+                ext_values = self.ext_critics[0](states)
+                int_values = self.int_critics[0](states)
+
+                ext_adv, _ = estimate_advantages(
+                    ext_rewards, terminations, truncations, ext_values,
+                    gamma=self.gamma, gae=self.gae,
+                )
+                int_adv, _ = estimate_advantages(
+                    int_rewards, terminations, truncations, int_values,
+                    gamma=self.gamma, gae=self.gae,
+                )
+                advantages = (ext_adv + int_adv).detach()  # (T, 1)
+
+            goals_np = states[:, goal_idx].detach().cpu().numpy()  # (T, g)
+            n_clusters = min(n_clusters, max(2, len(np.unique(goals_np, axis=0))))
+
+            kmeans = KMeans(n_clusters=n_clusters, n_init=5, random_state=0)
+            labels = kmeans.fit_predict(goals_np)
+
+            # Per-cluster advantage-weighted policy-gradient vectors
+            grad_vecs = []
+            valid_clusters = []
+            for c in range(n_clusters):
+                mask = torch.from_numpy(labels == c).to(states.device)
+                if mask.sum() < 4:
+                    continue
+                mb_states = states[mask].detach()
+                mb_actions = actions[mask].detach()
+                mb_adv = advantages[mask]
+                # Normalize advantages within the cluster for scale consistency
+                mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
+
+                probe = deepcopy(actor)
+                probe.zero_grad()
+                _, meta = probe(mb_states)
+                logprobs = probe.log_prob(meta["dist"], mb_actions)  # (N, 1)
+                # True policy gradient: -E[log π(a|s) · Â(s,a)]
+                loss = -(logprobs * mb_adv).mean()
+                loss.backward()
+
+                flat = torch.cat([
+                    p.grad.detach().cpu().flatten()
+                    for p in probe.parameters()
+                    if p.grad is not None
+                ])
+                grad_vecs.append(flat)
+                valid_clusters.append(c)
+                del probe
+
+            if len(grad_vecs) < 2:
+                return None, {}
+
+            n = len(grad_vecs)
+            cos_sim = np.zeros((n, n))
+            for i in range(n):
+                for j in range(n):
+                    cos_sim[i, j] = F.cosine_similarity(
+                        grad_vecs[i].unsqueeze(0), grad_vecs[j].unsqueeze(0)
+                    ).item()
+
+            angles = np.degrees(np.arccos(np.clip(cos_sim, -1.0, 1.0)))
+
+            off_diag_mask = ~np.eye(n, dtype=bool)
+            off_diag = cos_sim[off_diag_mask]
+            conflict_frac = float((off_diag < 0).mean())
+            mean_cos = float(off_diag.mean())
+
+            # Figure: two side-by-side heatmaps
+            fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+            tick_labels = [f"G{c}" for c in valid_clusters]
+
+            im0 = axes[0].imshow(cos_sim, vmin=-1, vmax=1, cmap="RdBu_r")
+            axes[0].set_title(
+                f"Cosine Similarity  (conflict={conflict_frac:.2f}, mean={mean_cos:.3f})"
+            )
+            axes[0].set_xticks(range(n)); axes[0].set_xticklabels(tick_labels)
+            axes[0].set_yticks(range(n)); axes[0].set_yticklabels(tick_labels)
+            plt.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
+            for i in range(n):
+                for j in range(n):
+                    axes[0].text(j, i, f"{cos_sim[i,j]:.2f}",
+                                 ha="center", va="center", fontsize=7)
+
+            im1 = axes[1].imshow(angles, vmin=0, vmax=180, cmap="hot_r")
+            axes[1].set_title("Gradient Angle (°)")
+            axes[1].set_xticks(range(n)); axes[1].set_xticklabels(tick_labels)
+            axes[1].set_yticks(range(n)); axes[1].set_yticklabels(tick_labels)
+            plt.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
+            for i in range(n):
+                for j in range(n):
+                    axes[1].text(j, i, f"{angles[i,j]:.0f}°",
+                                 ha="center", va="center", fontsize=7)
+
+            plt.tight_layout()
+            fig.canvas.draw()
+            buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+            buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plt.close(fig)
+
+            metrics = {
+                f"{self.name}/grad_conflict/conflict_fraction": conflict_frac,
+                f"{self.name}/grad_conflict/mean_cosine_similarity": mean_cos,
+            }
+            return buf, metrics
+
+        except Exception as e:
+            print(f"[WARNING] Goal gradient conflict figure failed: {e}")
+            return None, {}
+
     def measure_kl_among_exp_policies(self, batch: dict):
         """
         For a single option, measure KL divergence between the base policy and
@@ -801,7 +935,17 @@ class IRPO_G_Learner(IRPO_Learner):
             total_base_update_time / total_time
         )
 
+        # Gradient conflict across goals
+        conflict_img, conflict_metrics = self._goal_gradient_conflict_figure(
+            init_batch, self.final_exp_policies[0]
+        )
+        loss_dict.update(conflict_metrics)
+
         # Render the single exploratory policy
+        image_dict = {}
+        if conflict_img is not None:
+            image_dict["goal_gradient_conflict"] = conflict_img
+
         supp_dict = {}
         eval_seed = random.randint(0, 10000)  # New seed for rendering
         state, _ = env.reset(seed=eval_seed)
@@ -829,4 +973,5 @@ class IRPO_G_Learner(IRPO_Learner):
             "loss_dict": loss_dict,
             "timesteps": total_timesteps,
             "supp_dict": supp_dict,
+            "image_dict": image_dict,
         }

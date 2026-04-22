@@ -30,7 +30,7 @@ class DRND_Algorithm(nn.Module):
         sampler = OnlineSampler(
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
+            episode_len=self.args.episode_len,
             batch_size=int(self.args.minibatch_size * self.args.num_minibatch),
         )
 
