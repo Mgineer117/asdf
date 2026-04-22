@@ -195,7 +195,7 @@ class PPO_Actor(Base):
             return dist.entropy().unsqueeze(-1).sum(1)
 
 
-class PPO_Critic(Base):
+class PPO_Critic(nn.Module):
     def __init__(
         self,
         input_dim: Union[int, tuple, list],
