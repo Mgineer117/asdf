@@ -35,6 +35,8 @@ class PSNE_Learner(Base):
         backtrack_coeff: float = 0.8,
         gamma: float = 0.99,
         gae: float = 0.9,
+        pos_idx: list = None,
+        goal_idx: list = None,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -62,6 +64,9 @@ class PSNE_Learner(Base):
         self.sampled_actor = deepcopy(self.actor)
 
         self.critic = critic
+        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
+        self.update_obs_rms(self.states)
+        self.sync_obs_rms_to(self.actor, self.sampled_actor, self.critic)
         self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=lr)
 
         #
@@ -117,6 +122,8 @@ class PSNE_Learner(Base):
 
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
+        self.update_obs_rms(states)
+        self.sync_obs_rms_to(self.actor, self.sampled_actor, self.critic)
         actions = self.preprocess_state(batch["actions"])
         rewards = self.preprocess_state(batch["rewards"])
         terminations = self.preprocess_state(batch["terminations"])

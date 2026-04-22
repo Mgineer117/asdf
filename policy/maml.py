@@ -30,6 +30,8 @@ class MAML_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.95,
+        pos_idx: list = None,
+        goal_idx: list = None,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -74,6 +76,8 @@ class MAML_Learner(Base):
 
         # Initialized to 0, updated via EMA.
         self.perf_gains = torch.zeros(self.num_options).to(self.device)
+        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
+        self.sync_obs_rms_to(self.actor, self.critic, self.critics)
 
         self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
@@ -131,9 +135,12 @@ class MAML_Learner(Base):
         )
 
         for j in range(self.num_exp_updates):
+            self.sync_obs_rms_to(actor, self.critic)
             batch, _ = sampler.collect_samples(env, actor, seed)
 
             states = self.preprocess_state(batch["states"])
+            self.update_obs_rms(states)
+            self.sync_obs_rms_to(actor, self.critic)
             actions = self.preprocess_state(batch["actions"])
             rewards = self.preprocess_state(batch["rewards"])
             terminations = self.preprocess_state(batch["terminations"])
@@ -176,6 +183,8 @@ class MAML_Learner(Base):
         # Collect initial data with the base policy
         init_batch, init_sample_time = sampler.collect_samples(env, self.actor, seed)
         total_sample_time += init_sample_time  # Track initial sample
+        self.update_obs_rms(init_batch["states"])
+        self.sync_obs_rms_to(self.actor, self.critic, self.critics, self.adapted_actor)
 
         total_timesteps += init_batch["states"].shape[0]
 
@@ -192,6 +201,7 @@ class MAML_Learner(Base):
                 batches = [init_batch for _ in self.policy_indices]
                 timesteps = 0
             else:
+                self.sync_obs_rms_to(actors)
                 batches, current_sample_time = sampler.collect_samples(
                     env, actors, seed
                 )
@@ -288,6 +298,8 @@ class MAML_Learner(Base):
 
         # Preprocessing data
         states = self.preprocess_state(batch["states"])
+        self.update_obs_rms(states)
+        self.sync_obs_rms_to(actor, self.critics[i])
         actions = self.preprocess_state(batch["actions"])
         rewards = self.preprocess_state(batch["rewards"][:, i : i + 1])
         terminations = self.preprocess_state(batch["terminations"])
@@ -381,6 +393,7 @@ class MAML_Learner(Base):
     ):
         if self.base_policy_update_type == "trpo":
             states = self.preprocess_state(states)
+            self.sync_obs_rms_to(self.actor)
             old_actor = deepcopy(self.actor)
 
             # Flatten the aggregated gradients

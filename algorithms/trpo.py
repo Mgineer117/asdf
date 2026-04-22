@@ -49,6 +49,8 @@ class TRPO_Algorithm(nn.Module):
         return trainer.best_success_mean
 
     def define_policy(self):
+        pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
@@ -69,6 +71,8 @@ class TRPO_Algorithm(nn.Module):
             target_kl=self.args.target_kl,
             gamma=self.args.gamma,
             gae=self.args.gae,
+            pos_idx=pos_idx,
+            goal_idx=goal_idx,
             device=self.args.device,
         )
 

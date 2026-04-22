@@ -95,6 +95,8 @@ class HRL(nn.Module):
 
     def define_policy(self):
         # === Define policy === #
+        pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
         self.policies = nn.ModuleList([])
         for i in range(self.args.num_options):
             actor = PPO_Actor(
@@ -119,6 +121,8 @@ class HRL(nn.Module):
                 gamma=self.args.gamma,  # 1.0,  # gamma for option is 1 to find maxima
                 gae=self.args.gae,
                 K=self.args.K_epochs,
+                pos_idx=pos_idx,
+                goal_idx=goal_idx,
                 device=self.args.device,
             )
             policy.name = "HRL_options"
@@ -156,6 +160,8 @@ class HRL(nn.Module):
             gamma=self.args.gamma,
             gae=self.args.gae,
             K=self.args.K_epochs,
+            pos_idx=pos_idx,
+            goal_idx=goal_idx,
             device=self.args.device,
         )
 

@@ -223,7 +223,7 @@ class FourRooms(MultiGridEnv):
                         reward += -1
                         info["success"] = False
                     elif fwd_cell.type == "floor":
-                        reward += 0.1
+                        reward += 0.03
                         done = True
                         info["success"] = False
             elif fwd_cell is None or fwd_cell.can_overlap():
@@ -247,7 +247,7 @@ class FourRooms(MultiGridEnv):
                         reward += -1
                         info["success"] = False
                     elif fwd_cell.type == "floor":
-                        reward += 0.1
+                        reward += 0.03
                         done = True
                         info["success"] = False
             elif fwd_cell is None or fwd_cell.can_overlap():
@@ -271,7 +271,7 @@ class FourRooms(MultiGridEnv):
                         reward += -1
                         info["success"] = False
                     elif fwd_cell.type == "floor":
-                        reward += 0.1
+                        reward += 0.03
                         done = True
                         info["success"] = False
                         # self._restore_previous_cell(self.agent.pos)
@@ -298,7 +298,7 @@ class FourRooms(MultiGridEnv):
                         reward += -1
                         info["success"] = False
                     elif fwd_cell.type == "floor":
-                        reward += 0.1
+                        reward += 0.03
                         done = True
                         info["success"] = False
                         # self._restore_previous_cell(self.agent.pos)

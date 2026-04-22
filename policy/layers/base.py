@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -23,53 +24,99 @@ class Base(nn.Module):
 
     def setup_obs_rms(self, state_dim, pos_idx=None, goal_idx=None):
         """
-        Call once in learner __init__ to enable per-dimension state normalisation.
+        Setup split running statistics for goal-conditioned vector states.
 
-        For goal-conditioned envs, pass pos_idx (achieved_goal indices) and
-        goal_idx (desired_goal indices). After every RMS update, desired_goal
-        dim stats are overwritten with achieved_goal dim stats, ensuring both
-        are normalised by the same well-estimated (high-variance) statistics.
-        This prevents the near-zero-variance problem that arises because the
-        desired_goal is constant within an episode while achieved_goal varies.
+        The state is partitioned into:
+        - obs_idx: all dimensions that are not in pos_idx or goal_idx
+        - pos_idx: achieved-position dimensions
+        - goal_idx: desired-goal dimensions
+
+        obs_idx uses its own normalizer. goal_idx shares the same normalizer as
+        pos_idx so goal and achieved position are scaled identically.
         """
         from utils.wrapper import RunningMeanStd
 
-        # Skip for image inputs (2-D or 3-D shape) — encoder already handles scale
+        self.obs_rms = None
+        self.pos_rms = None
+        self._rms_obs_idx = None
+        self._rms_pos_idx = None
+        self._rms_goal_idx = None
+
+        # Skip non-goal-conditioned cases and image inputs.
+        if pos_idx is None or goal_idx is None:
+            return
         if isinstance(state_dim, (tuple, list)) and len(state_dim) >= 2:
-            self.obs_rms = None
-            self._rms_pos_idx = None
-            self._rms_goal_idx = None
+            return
+
+        total_dim = state_dim[0] if isinstance(state_dim, tuple) else state_dim
+
+        def to_pos(idxs):
+            return [i % total_dim for i in idxs] if idxs else None
+
+        self._rms_pos_idx = to_pos(pos_idx)
+        self._rms_goal_idx = to_pos(goal_idx)
+        if self._rms_pos_idx is None or self._rms_goal_idx is None:
+            return
+
+        obs_set = set(self._rms_pos_idx) | set(self._rms_goal_idx)
+        self._rms_obs_idx = [i for i in range(total_dim) if i not in obs_set]
+
+        if len(self._rms_obs_idx) > 0:
+            self.obs_rms = RunningMeanStd(shape=(len(self._rms_obs_idx),))
+        self.pos_rms = RunningMeanStd(shape=(len(self._rms_pos_idx),))
+
+    def update_obs_rms(self, x: torch.Tensor | np.ndarray):
+        if self._rms_pos_idx is None or self._rms_goal_idx is None:
+            return
+
+        if isinstance(x, torch.Tensor):
+            x = x.detach().cpu().numpy()
         else:
-            total_dim = state_dim[0] if isinstance(state_dim, tuple) else state_dim
-            self.obs_rms = RunningMeanStd(shape=(total_dim,))
-            # Convert potentially-negative indices to positive for numpy indexing
-            to_pos = lambda idxs: [i % total_dim for i in idxs] if idxs else None
-            self._rms_pos_idx = to_pos(pos_idx)
-            self._rms_goal_idx = to_pos(goal_idx)
-            # Only sync when pos and goal are genuinely separate dimensions
-            if (self._rms_pos_idx is not None and self._rms_goal_idx is not None
-                    and self._rms_pos_idx == self._rms_goal_idx):
-                self._rms_goal_idx = None  # same dims — no sync needed
+            x = np.asarray(x)
+
+        if x.ndim == 1:
+            x = x[None, :]
+
+        if self.obs_rms is not None and len(self._rms_obs_idx) > 0:
+            self.obs_rms.update(x[:, self._rms_obs_idx])
+        if self.pos_rms is not None:
+            self.pos_rms.update(x[:, self._rms_pos_idx])
 
     def _sync_goal_stats(self):
-        """
-        Copy achieved_goal dim statistics into desired_goal dim slots.
-        Must be called after every obs_rms.update() in goal-conditioned learners.
-        """
-        if (self.obs_rms is None
-                or self._rms_pos_idx is None
-                or self._rms_goal_idx is None):
-            return
-        for p, g in zip(self._rms_pos_idx, self._rms_goal_idx):
-            self.obs_rms.mean[g] = self.obs_rms.mean[p]
-            self.obs_rms.var[g] = self.obs_rms.var[p]
+        return
 
     def _normalize_obs(self, x: torch.Tensor) -> torch.Tensor:
-        """Normalize x with running stats; no-op if obs_rms is None."""
-        rms = getattr(self, "obs_rms", None)
-        if rms is None:
+        """Normalize goal-conditioned vector observations; otherwise no-op."""
+        if self._rms_pos_idx is None or self._rms_goal_idx is None:
             return x
-        return rms.normalize(x)
+        if x.ndim != 2:
+            return x
+
+        out = x.clone() if isinstance(x, torch.Tensor) else np.array(x, copy=True)
+
+        if self.obs_rms is not None and len(self._rms_obs_idx) > 0:
+            out[:, self._rms_obs_idx] = self.obs_rms.normalize(x[:, self._rms_obs_idx])
+        if self.pos_rms is not None:
+            out[:, self._rms_pos_idx] = self.pos_rms.normalize(x[:, self._rms_pos_idx])
+            out[:, self._rms_goal_idx] = self.pos_rms.normalize(
+                x[:, self._rms_goal_idx]
+            )
+        return out
+
+    def sync_obs_rms_to(self, *modules):
+        for module in modules:
+            if module is None:
+                continue
+            if isinstance(module, (list, tuple, nn.ModuleList)):
+                self.sync_obs_rms_to(*list(module))
+                continue
+            if not hasattr(module, "setup_obs_rms"):
+                continue
+            module.obs_rms = deepcopy(getattr(self, "obs_rms", None))
+            module.pos_rms = deepcopy(getattr(self, "pos_rms", None))
+            module._rms_obs_idx = deepcopy(getattr(self, "_rms_obs_idx", None))
+            module._rms_pos_idx = deepcopy(getattr(self, "_rms_pos_idx", None))
+            module._rms_goal_idx = deepcopy(getattr(self, "_rms_goal_idx", None))
 
     def print_parameter_devices(self, model):
         for name, param in model.named_parameters():

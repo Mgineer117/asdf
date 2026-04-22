@@ -93,6 +93,12 @@ class HTRPO_Learner(Base):
 
         self.actor = actor
         self.critic = critic
+        self.setup_obs_rms(
+            actor.input_shape,
+            pos_idx=self.achieved_goal_idx,
+            goal_idx=self.desired_goal_idx,
+        )
+        self.sync_obs_rms_to(self.actor, self.critic)
 
         self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=5e-4)
 
@@ -369,6 +375,8 @@ class HTRPO_Learner(Base):
         hs_goal_ids_np: np.ndarray = hs_batch.pop("hs_goal_ids")
 
         states = self.preprocess_state(hs_batch["states"])
+        self.update_obs_rms(states)
+        self.sync_obs_rms_to(self.actor, self.critic)
         actions = self.preprocess_state(hs_batch["actions"])
         rewards = self.preprocess_state(hs_batch["rewards"])
         terminations = self.preprocess_state(hs_batch["terminations"])

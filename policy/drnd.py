@@ -37,6 +37,8 @@ class DRND_Learner(Base):
         drnd_loss_scaler: float = 1.0,
         update_proportion: float = 0.25,
         alpha: float = 0.9,
+        pos_idx: list = None,
+        goal_idx: list = None,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -67,6 +69,8 @@ class DRND_Learner(Base):
         self.critic = critic
         self.drnd = drnd_model
         self.drnd_critic = drnd_critic
+        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
+        self.sync_obs_rms_to(self.actor, self.critic, self.drnd_critic)
 
         self.int_reward_rms = RunningMeanStd(shape=(1,))
 
@@ -149,6 +153,8 @@ class DRND_Learner(Base):
 
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
+        self.update_obs_rms(states)
+        self.sync_obs_rms_to(self.actor, self.critic, self.drnd_critic)
         next_states = self.preprocess_state(batch["next_states"])
         actions = self.preprocess_state(batch["actions"])
         terminations = self.preprocess_state(batch["terminations"])

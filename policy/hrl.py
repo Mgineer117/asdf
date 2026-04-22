@@ -30,6 +30,8 @@ class HRL_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.9,
         K: int = 5,
+        pos_idx: list = None,
+        goal_idx: list = None,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -54,6 +56,8 @@ class HRL_Learner(Base):
         self.policies = [None]  # will be added in trainer
         self.actor = actor
         self.critic = critic
+        self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
+        self.sync_obs_rms_to(self.actor, self.critic)
 
         self.optimizer = torch.optim.Adam(
             [
@@ -122,6 +126,8 @@ class HRL_Learner(Base):
 
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
+        self.update_obs_rms(states)
+        self.sync_obs_rms_to(self.actor, self.critic)
         actions = self.preprocess_state(batch["actions"])
         rewards = self.preprocess_state(batch["rewards"])
         terminations = self.preprocess_state(batch["terminations"])

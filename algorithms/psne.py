@@ -50,6 +50,8 @@ class PSNE_Algorithm(nn.Module):
 
     def define_policy(self):
         from policy.uniform_random import UniformRandom
+        pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
 
         self.uniform_random_policy = UniformRandom(
             state_dim=self.args.state_dim,
@@ -89,6 +91,8 @@ class PSNE_Algorithm(nn.Module):
             target_kl=self.args.target_kl,
             gamma=self.args.gamma,
             gae=self.args.gae,
+            pos_idx=pos_idx,
+            goal_idx=goal_idx,
             device=self.args.device,
         )
 

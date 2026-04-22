@@ -77,6 +77,7 @@ class PPO_Actor(Base):
         deterministic: bool = False,
     ):
         state = self.preprocess_state(state)
+        state = self._normalize_obs(state)
 
         # --- Universal Image Reshape Logic ---
         if isinstance(self.input_shape, (tuple, list)):
@@ -195,7 +196,7 @@ class PPO_Actor(Base):
             return dist.entropy().unsqueeze(-1).sum(1)
 
 
-class PPO_Critic(nn.Module):
+class PPO_Critic(Base):
     def __init__(
         self,
         input_dim: Union[int, tuple, list],
@@ -203,7 +204,7 @@ class PPO_Critic(nn.Module):
         activation: nn.Module = nn.Tanh(),
         device=torch.device("cpu"),
     ):
-        super(PPO_Critic, self).__init__()
+        super().__init__(device=device)
 
         self.hidden_dim = hidden_dim
 
@@ -254,6 +255,9 @@ class PPO_Critic(nn.Module):
         self.to(device)
 
     def forward(self, x: torch.Tensor):
+        x = self.preprocess_state(x)
+        x = self._normalize_obs(x)
+
         # --- Universal Image Reshape Logic ---
         if isinstance(self.input_shape, (tuple, list)):
             expected_flat_size = int(np.prod(self.input_shape))
