@@ -121,8 +121,6 @@ class HRL(nn.Module):
                 gamma=self.args.gamma,  # 1.0,  # gamma for option is 1 to find maxima
                 gae=self.args.gae,
                 K=self.args.K_epochs,
-                pos_idx=pos_idx,
-                goal_idx=goal_idx,
                 device=self.args.device,
             )
             policy.name = "HRL_options"
