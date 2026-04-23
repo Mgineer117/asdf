@@ -43,6 +43,7 @@ class IRPO_Learner(Base):
         beta: float,
         intrinsic_reward_fn: BaseIntRewardFunctions,
         aggregation_method: str,
+        temperature: float,
         noise_std: float,
         # find_lr: bool,
         num_exp_updates: int,
@@ -114,6 +115,7 @@ class IRPO_Learner(Base):
         # Initialized to 0, updated via EMA.
         self.perf_gains = torch.zeros(self.num_options).to(self.device)
         self.aggregation_method = aggregation_method
+        self.temperature = temperature
 
         # Storage for the best policies found during exploration (for inference/eval)
         self.final_exp_policies = [deepcopy(actor) for _ in range(self.num_options)]
@@ -273,9 +275,12 @@ class IRPO_Learner(Base):
         t_backprop_start = time.time()
 
         greedy_idx = torch.argmax(self.perf_gains).item()
-        # Temperature anneals linearly from 1.0 → 0 over the first 20 % of training,
-        # then stays effectively at 0 (argmax) for the remaining 80 %.
-        temperature = max(1e-8, 1.0 - learning_progress / 0.2)
+        # Temperature anneals linearly from 1.0 to 0 over self.temperature
+        # learning progress, then stays effectively at 0 (argmax-like).
+        if self.temperature <= 0:
+            temperature = 1e-8
+        else:
+            temperature = max(1e-8, 1.0 - learning_progress / self.temperature)
 
         if temperature <= 1e-8 or len(active_indices) == 1:
             active_gains = self.perf_gains[active_indices]
@@ -646,6 +651,7 @@ class IRPO_G_Learner(IRPO_Learner):
         env_name: str,
         beta: float,
         intrinsic_reward_fn: BaseIntRewardFunctions,
+        temperature: float,
         noise_std: float,
         num_exp_updates: int,
         base_policy_update_type: str = "trpo",
@@ -665,6 +671,7 @@ class IRPO_G_Learner(IRPO_Learner):
             beta=beta,
             intrinsic_reward_fn=intrinsic_reward_fn,
             aggregation_method="argmax",  # unused, required by parent signature
+            temperature=temperature,
             noise_std=noise_std,
             num_exp_updates=num_exp_updates,
             base_policy_update_type=base_policy_update_type,

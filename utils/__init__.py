@@ -27,6 +27,7 @@ EPI_LENGTH = {
     "fetchpush": 50,
     "fetchpusheasy": 100,  # longer horizon to compensate for smaller ranges
     "pacman": 1000,
+    "amidar": 1000,
 }
 
 POS_IDX = {
@@ -42,6 +43,7 @@ POS_IDX = {
     "fetchpush": [-6, -5, -4],
     "fetchpusheasy": [-6, -5, -4],
     "pacman": None,
+    "amidar": None,
 }
 
 GOAL_IDX = {
@@ -57,6 +59,7 @@ GOAL_IDX = {
     "fetchpush": [-3, -2, -1],
     "fetchpusheasy": [-3, -2, -1],
     "pacman": None,
+    "amidar": None,
 }
 
 

@@ -129,11 +129,16 @@ def get_env(args):
         )
 
         env = AntMazeWrapper(env, example_map, episode_len, args.seed, cell_size=4.0)
-    elif env_name == "pacman":
+    elif env_name in {"pacman", "amidar"}:
         from extractor.base.image_encoder import pretrain_image_encoder
 
+        atari_env_id = {
+            "pacman": "ALE/Pacman-v5",
+            "amidar": "ALE/Amidar-v5",
+        }[env_name]
+
         _raw_env = gym.make(
-            "ALE/Pacman-v5",
+            atari_env_id,
             render_mode="rgb_array",
             max_episode_steps=episode_len,
             obs_type="grayscale",
@@ -181,10 +186,10 @@ def get_env(args):
     args.goal_idx = GOAL_IDX[env_name]
     args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
-    # Pacman observations are already encoded into a flat feature vector by
+    # Arcade observations are already encoded into a flat feature vector by
     # ArcadeWrapper, so ALLO should consume the full vector rather than a
     # hand-picked positional subset.
-    if env_name == "pacman":
+    if env_name in {"pacman", "amidar"}:
         args.pos_idx = list(range(env.observation_space.shape[0]))
 
     _goal_conditioned_envs = {
@@ -203,7 +208,7 @@ def get_env(args):
             + env.observation_space["desired_goal"].shape[0],
         )
         args.action_dim = env.action_space.shape[0]
-    elif env_name in ["pacman"]:
+    elif env_name in ["pacman", "amidar"]:
         # observation_space.shape is (encoder_dim,) after ArcadeWrapper encoding
         args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.n

@@ -104,6 +104,7 @@ class IRPO_Algorithm(nn.Module):
             critic=critic,
             beta=self.args.beta,
             intrinsic_reward_fn=self.intrinsic_reward_fn,
+            temperature=self.args.temperature,
             noise_std=self.args.noise_std,
             num_exp_updates=self.args.num_exp_updates,
             base_policy_update_type=self.args.base_policy_update_type,

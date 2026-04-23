@@ -184,6 +184,12 @@ def get_args():
         help="The standard deviation of the noise added to the intrinsic reward signal.",
     )
     parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.2,
+        help="IRPO temperature annealing horizon in learning progress. Temperature linearly decays to 0 when learning_progress reaches this value.",
+    )
+    parser.add_argument(
         "--find-lr",
         action="store_true",
         help="Whether to find the optimal learning rate for the intrinsic reward signal.",
