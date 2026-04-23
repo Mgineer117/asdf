@@ -1,6 +1,7 @@
 import datetime
 import os
 import random
+import shutil
 import uuid
 
 import torch
@@ -14,7 +15,11 @@ from utils.get_envs import get_env
 os.environ["WANDB_SILENT"] = "true"
 
 
-def run(args, seed, unique_id, exp_time, is_sweep=False):
+def get_results_csv_path(args, seed):
+    return os.path.join("results", args.env_name, args.algo_name, f"{seed}.csv")
+
+
+def run(args, seed, unique_id, exp_time, result_csv_path=None, is_sweep=False):
     # fix seed
     seed_all(seed)
 
@@ -60,6 +65,11 @@ def run(args, seed, unique_id, exp_time, is_sweep=False):
 
     perf = algo.begin_training()
 
+    if result_csv_path is not None and getattr(logger, "csv_file", None):
+        os.makedirs(os.path.dirname(result_csv_path), exist_ok=True)
+        if os.path.exists(logger.csv_file):
+            shutil.copy2(logger.csv_file, result_csv_path)
+
     # ✅ Memory cleanup
     del algo, env, logger, writer  # delete large references
     torch.cuda.empty_cache()  # release unreferenced GPU memory
@@ -97,6 +107,19 @@ if __name__ == "__main__":
         args.seed = seed
         args.unique_id = unique_id
 
-        run(args, seed, unique_id, exp_time)
+        result_csv_path = get_results_csv_path(args, seed)
+        if not args.override_results and os.path.exists(result_csv_path):
+            print(
+                f"[Skip] Results already exist for {args.env_name}/{args.algo_name}/seed {seed}."
+            )
+            continue
+
+        run(
+            args,
+            seed,
+            unique_id,
+            exp_time,
+            result_csv_path=result_csv_path,
+        )
 
     concat_csv_columnwise_and_delete(folder_path=args.logdir)

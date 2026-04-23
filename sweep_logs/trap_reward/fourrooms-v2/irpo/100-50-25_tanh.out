@@ -1,0 +1,87 @@
+============================================================================================
+Device set to : NVIDIA GeForce RTX 4080 SUPER
+============================================================================================
+-------------------------------------------------------
+      Running ID: e923
+      Running Seeds: [2287, 8936, 9675, 1825, 3658, 1425, 4013, 410, 1680, 4507]
+      Time Begun   : 04-23_11-30-25.319536
+-------------------------------------------------------
+[36;1mSaving config:
+[0m
+{
+    "K_epochs":	5,
+    "action_dim":	"4",
+    "actor_activation":	"tanh",
+    "actor_fc_dim":	[
+        100,
+        50,
+        25
+    ],
+    "aggregation_method":	"softmax",
+    "algo_name":	"irpo",
+    "anneal_kl":	false,
+    "base_policy_update_type":	"trpo",
+    "batch_size":	1024,
+    "beta":	0.95,
+    "critic_fc_dim":	[
+        128,
+        128
+    ],
+    "device":	"cuda:0",
+    "discount_sampling_factor":	0.9,
+    "entropy_scaler":	0.001,
+    "env_name":	"fourrooms-v2",
+    "episode_len":	50,
+    "eps_clip":	0.1,
+    "eval_num":	10,
+    "extractor_epochs":	10000,
+    "extractor_lr":	0.0001,
+    "feature_dim":	10,
+    "find_lr":	false,
+    "gae":	0.98,
+    "gamma":	0.98,
+    "goal_idx":	[
+        2,
+        3
+    ],
+    "gpu_idx":	0,
+    "group":	"04-23_11-30-25.319536-e923",
+    "hl_timesteps":	2000000.0,
+    "int_reward_type":	"allo",
+    "irpo_type":	"irpo",
+    "is_discrete":	true,
+    "is_goal_conditioned":	false,
+    "learning_rate":	0.01,
+    "log_interval":	100,
+    "logdir":	"log/train_log/04-23_11-30-25.319536-e923",
+    "lr_barrier_coeff":	1.0,
+    "minibatch_size":	256,
+    "name":	"irpo-fourrooms-v2-e923-seed:2287",
+    "noise_std":	0.0,
+    "num_exp_updates":	5,
+    "num_minibatch":	4,
+    "num_options":	4,
+    "num_runs":	10,
+    "override_results":	true,
+    "pos_idx":	[
+        0,
+        1
+    ],
+    "project":	"trap_reward",
+    "rendering":	false,
+    "seed":	2287,
+    "state_dim":	[
+        4
+    ],
+    "sub_timesteps":	2000000.0,
+    "target_kl":	0.001,
+    "temperature":	0.2,
+    "timesteps":	10000000.0,
+    "unique_id":	"e923"
+}
+[INFO] Found 10 .pth files in model/fourrooms-v2/
+[INFO] Loading model from: model/fourrooms-v2/ALLO_2287_50000_0.9.pth (epoch 50000, seed 2287, discount 0.9)
+Sampling Parameters:
+Total number of workers per policy: 4
+Target samples per worker: 256
+IRPO Training (Timesteps):   0%|          | 0/10000000.0 [00:00<?, ?it/s]IRPO Training (Timesteps):   0%|          | 17408/10000000.0 [00:24<3:57:15, 701.24it/s]IRPO Training (Timesteps):   0%|          | 17408/10000000.0 [00:40<3:57:15, 701.24it/s]IRPO Training (Timesteps):   0%|          | 34816/10000000.0 [00:50<4:02:03, 686.14it/s]IRPO Training (Timesteps):   0%|          | 34816/10000000.0 [01:10<4:02:03, 686.14it/s]IRPO Training (Timesteps):   1%|          | 52224/10000000.0 [01:16<4:04:52, 677.09it/s]IRPO Training (Timesteps):   1%|          | 52224/10000000.0 [01:30<4:04:52, 677.09it/s]IRPO Training (Timesteps):   1%|          | 69632/10000000.0 [01:38<3:51:27, 715.05it/s]IRPO Training (Timesteps):   1%|          | 69632/10000000.0 [01:50<3:51:27, 715.05it/s]IRPO Training (Timesteps):   1%|          | 87040/10000000.0 [01:59<3:37:24, 759.91it/s]IRPO Training (Timesteps):   1%|          | 87040/10000000.0 [02:10<3:37:24, 759.91it/s]IRPO Training (Timesteps):   1%|          | 104448/10000000.0 [02:23<3:42:23, 741.61it/s]IRPO Training (Timesteps):   1%|          | 104448/10000000.0 [02:40<3:42:23, 741.61it/s]IRPO Training (Timesteps):   1%|          | 121856/10000000.0 [02:48<3:46:37, 726.44it/s]IRPO Training (Timesteps):   1%|          | 121856/10000000.0 [03:00<3:46:37, 726.44it/s]IRPO Training (Timesteps):   1%|▏         | 139264/10000000.0 [03:15<3:55:35, 697.57it/s]IRPO Training (Timesteps):   1%|▏         | 139264/10000000.0 [03:30<3:55:35, 697.57it/s]IRPO Training (Timesteps):   2%|▏         | 156672/10000000.0 [03:36<3:41:19, 741.24it/s]IRPO Training (Timesteps):   2%|▏         | 156672/10000000.0 [03:50<3:41:19, 741.24it/s]IRPO Training (Timesteps):   2%|▏         | 174080/10000000.0 [03:56<3:32:04, 772.18it/s]IRPO Training (Timesteps):   2%|▏         | 174080/10000000.0 [04:10<3:32:04, 772.18it/s]IRPO Training (Timesteps):   2%|▏         | 191488/10000000.0 [04:21<3:39:37, 744.32it/s]IRPO Training (Timesteps):   2%|▏         | 191488/10000000.0 [04:40<3:39:37, 744.32it/s]IRPO Training (Timesteps):   2%|▏         | 208896/10000000.0 [04:43<3:34:38, 760.28it/s]IRPO Training (Timesteps):   2%|▏         | 208896/10000000.0 [05:00<3:34:38, 760.28it/s]IRPO Training (Timesteps):   2%|▏         | 226304/10000000.0 [05:04<3:28:21, 781.80it/s]IRPO Training (Timesteps):   2%|▏         | 226304/10000000.0 [05:20<3:28:21, 781.80it/s]IRPO Training (Timesteps):   2%|▏         | 243712/10000000.0 [05:27<3:29:51, 774.82it/s]IRPO Training (Timesteps):   2%|▏         | 243712/10000000.0 [05:40<3:29:51, 774.82it/s]IRPO Training (Timesteps):   3%|▎         | 261120/10000000.0 [05:53<3:39:26, 739.67it/s]IRPO Training (Timesteps):   3%|▎         | 261120/10000000.0 [06:10<3:39:26, 739.67it/s]IRPO Training (Timesteps):   3%|▎         | 278528/10000000.0 [06:19<3:46:00, 716.92it/s]IRPO Training (Timesteps):   3%|▎         | 278528/10000000.0 [06:30<3:46:00, 716.92it/s]IRPO Training (Timesteps):   3%|▎         | 295936/10000000.0 [06:43<3:43:50, 722.55it/s]IRPO Training (Timesteps):   3%|▎         | 295936/10000000.0 [07:00<3:43:50, 722.55it/s]IRPO Training (Timesteps):   3%|▎         | 313344/10000000.0 [07:07<3:44:29, 719.17it/s]IRPO Training (Timesteps):   3%|▎         | 313344/10000000.0 [07:20<3:44:29, 719.17it/s]IRPO Training (Timesteps):   3%|▎         | 330752/10000000.0 [07:30<3:39:56, 732.69it/s]IRPO Training (Timesteps):   3%|▎         | 330752/10000000.0 [07:50<3:39:56, 732.69it/s]IRPO Training (Timesteps):   3%|▎         | 348160/10000000.0 [07:57<3:48:21, 704.42it/s]IRPO Training (Timesteps):   3%|▎         | 348160/10000000.0 [08:10<3:48:21, 704.42it/s]IRPO Training (Timesteps):   4%|▎         | 365568/10000000.0 [08:22<3:49:46, 698.81it/s]IRPO Training (Timesteps):   4%|▎         | 365568/10000000.0 [08:40<3:49:46, 698.81it/s]IRPO Training (Timesteps):   4%|▍         | 382976/10000000.0 [08:45<3:42:48, 719.40it/s]IRPO Training (Timesteps):   4%|▍         | 382976/10000000.0 [09:00<3:42:48, 719.40it/s]IRPO Training (Timesteps):   4%|▍         | 400384/10000000.0 [09:05<3:32:10, 754.04it/s]IRPO Training (Timesteps):   4%|▍         | 400384/10000000.0 [09:20<3:32:10, 754.04it/s]IRPO Training (Timesteps):   4%|▍         | 417792/10000000.0 [09:25<3:22:59, 786.76it/s]IRPO Training (Timesteps):   4%|▍         | 417792/10000000.0 [09:40<3:22:59, 786.76it/s]IRPO Training (Timesteps):   4%|▍         | 435200/10000000.0 [09:49<3:28:50, 763.35it/s]IRPO Training (Timesteps):   4%|▍         | 435200/10000000.0 [10:00<3:28:50, 763.35it/s]IRPO Training (Timesteps):   5%|▍         | 452608/10000000.0 [10:14<3:32:27, 748.98it/s]IRPO Training (Timesteps):   5%|▍         | 452608/10000000.0 [10:30<3:32:27, 748.98it/s]IRPO Training (Timesteps):   5%|▍         | 470016/10000000.0 [10:37<3:33:18, 744.60it/s]IRPO Training (Timesteps):   5%|▍         | 470016/10000000.0 [10:50<3:33:18, 744.60it/s]IRPO Training (Timesteps):   5%|▍         | 487424/10000000.0 [11:01<3:32:46, 745.09it/s]IRPO Training (Timesteps):   5%|▍         | 487424/10000000.0 [11:20<3:32:46, 745.09it/s]IRPO Training (Timesteps):   5%|▌         | 504832/10000000.0 [11:21<3:23:33, 777.45it/s]IRPO Training (Timesteps):   5%|▌         | 504832/10000000.0 [11:40<3:23:33, 777.45it/s]IRPO Training (Timesteps):   5%|▌         | 522240/10000000.0 [11:41<3:17:32, 799.62it/s]IRPO Training (Timesteps):   5%|▌         | 522240/10000000.0 [12:00<3:17:32, 799.62it/s]IRPO Training (Timesteps):   5%|▌         | 539648/10000000.0 [12:06<3:25:35, 766.90it/s]IRPO Training (Timesteps):   5%|▌         | 539648/10000000.0 [12:20<3:25:35, 766.90it/s]IRPO Training (Timesteps):   6%|▌         | 557056/10000000.0 [12:28<3:24:26, 769.82it/s]IRPO Training (Timesteps):   6%|▌         | 557056/10000000.0 [12:40<3:24:26, 769.82it/s]IRPO Training (Timesteps):   6%|▌         | 574464/10000000.0 [12:50<3:21:48, 778.43it/s]IRPO Training (Timesteps):   6%|▌         | 574464/10000000.0 [13:10<3:21:48, 778.43it/s]IRPO Training (Timesteps):   6%|▌         | 591872/10000000.0 [13:12<3:20:16, 782.91it/s]IRPO Training (Timesteps):   6%|▌         | 591872/10000000.0 [13:30<3:20:16, 782.91it/s]IRPO Training (Timesteps):   6%|▌         | 609280/10000000.0 [13:35<3:20:28, 780.74it/s]IRPO Training (Timesteps):   6%|▌         | 609280/10000000.0 [13:50<3:20:28, 780.74it/s]IRPO Training (Timesteps):   6%|▋         | 626688/10000000.0 [13:57<3:19:18, 783.83it/s]IRPO Training (Timesteps):   6%|▋         | 626688/10000000.0 [14:10<3:19:18, 783.83it/s]

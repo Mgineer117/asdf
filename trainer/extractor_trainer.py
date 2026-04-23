@@ -29,6 +29,8 @@ class ExtractorTrainer:
         epochs: int = 1e6,
         seed: int = 0,
         init_step: int = 0,
+        collect_loops: int = 1,
+        target_samples: int | None = None,
     ) -> None:
         self.env = env
         self.policy = random_policy
@@ -42,6 +44,10 @@ class ExtractorTrainer:
         self.init_epoch = init_epoch
         self.epochs = epochs
         self.init_step = init_step
+        self.collect_loops = max(1, int(collect_loops))
+        self.target_samples = (
+            int(target_samples) if target_samples is not None else None
+        )
 
         # initialize the essential training components
         self.last_min_loss = 1e10
@@ -53,8 +59,9 @@ class ExtractorTrainer:
 
         self.loss_list = deque(maxlen=5)
 
-        # Collect initial data
-        batch, _ = self.sampler.collect_samples(self.env, self.policy, self.seed)
+        # Collect initial data. For large targets, collect in loops to avoid a single
+        # oversized sampler call that can cause worker timeouts.
+        batch = self.collect_initial_data()
 
         # Train loop
         step = 0
@@ -108,6 +115,44 @@ class ExtractorTrainer:
         )
 
         return step
+
+    def collect_initial_data(self):
+        merged_batch = None
+        total_goal = (
+            self.target_samples
+            if self.target_samples is not None
+            else self.collect_loops * self.sampler.batch_size
+        )
+        total_collected = 0
+        checkpoint_count = min(100, self.collect_loops)
+        print_checkpoints = set(
+            np.linspace(1, self.collect_loops, num=checkpoint_count, dtype=int).tolist()
+        )
+
+        for i in range(self.collect_loops):
+            batch_i, _ = self.sampler.collect_samples(self.env, self.policy, self.seed)
+            loop_collected = batch_i["states"].shape[0]
+            total_collected += loop_collected
+
+            if merged_batch is None:
+                merged_batch = batch_i
+            else:
+                for key, value in batch_i.items():
+                    merged_batch[key] = np.concatenate(
+                        (merged_batch[key], value), axis=0
+                    )
+
+            if (i + 1) in print_checkpoints:
+                print(
+                    f"[INFO] Sampling loop {i + 1}/{self.collect_loops}: "
+                    f"{min(total_collected, total_goal)}/{total_goal} collected"
+                )
+
+        if self.target_samples is not None and merged_batch is not None:
+            for key in merged_batch.keys():
+                merged_batch[key] = merged_batch[key][: self.target_samples]
+
+        return merged_batch
 
     def write_log(self, logging_dict: dict, step: int, eval_log: bool = False):
         # Logging to WandB and Tensorboard

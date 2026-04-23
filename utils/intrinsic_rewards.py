@@ -1,6 +1,7 @@
 import glob
 import os
 from abc import abstractmethod
+from math import ceil
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -550,6 +551,16 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 epochs = max_epoch  # set current epoch
 
         if epochs < self.args.extractor_epochs:
+            total_target_samples = int(
+                getattr(self.args, "extractor_total_samples", 500_000)
+            )
+            total_target_samples = max(1, total_target_samples)
+            collect_batch_size = int(
+                getattr(self.args, "extractor_collect_batch_size", 20_000)
+            )
+            collect_batch_size = max(10_000, min(50_000, collect_batch_size))
+            collect_loops = ceil(total_target_samples / collect_batch_size)
+
             uniform_random_policy = UniformRandom(
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
@@ -560,7 +571,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
                 episode_len=self.args.episode_len,
-                batch_size=self.num_trials * self.args.episode_len,
+                batch_size=collect_batch_size,
                 verbose=False,
             )
             trainer = ExtractorTrainer(
@@ -572,6 +583,8 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 writer=self.writer,
                 epochs=self.args.extractor_epochs - epochs,
                 init_step=self.current_timesteps,
+                collect_loops=collect_loops,
+                target_samples=total_target_samples,
             )
             final_timesteps = trainer.train()
             self.current_timesteps += final_timesteps

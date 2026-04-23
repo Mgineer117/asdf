@@ -127,6 +127,25 @@ def get_args():
         help="The learning rate for the Actor network optimizer (used in standard baselines like PPO).",
     )
     parser.add_argument(
+        "--actor-activation",
+        type=str,
+        default=None,
+        help="Activation function for the actor network (e.g. relu or tanh).",
+    )
+    parser.add_argument(
+        "--override-results",
+        dest="override_results",
+        action="store_true",
+        default=True,
+        help="Overwrite the per-seed CSV saved under results/ if it already exists.",
+    )
+    parser.add_argument(
+        "--no-override-results",
+        dest="override_results",
+        action="store_false",
+        help="Skip a seed when its results CSV already exists under results/.",
+    )
+    parser.add_argument(
         "--eps-clip",
         type=float,
         default=0.1,

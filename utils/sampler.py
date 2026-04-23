@@ -126,7 +126,7 @@ class OnlineSampler(Base):
         while collected < total_expected_workers:
             try:
                 # Target collect_trajectory must return (global_worker_id, data)
-                g_id, data = queue.get(timeout=300)
+                g_id, data = queue.get(timeout=1200)
                 if worker_memories[g_id] is None:
                     worker_memories[g_id] = data
                     collected += 1

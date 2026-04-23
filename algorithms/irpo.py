@@ -90,11 +90,15 @@ class IRPO_Algorithm(nn.Module):
 
     def define_base_policy(self):
         # === Define policy === #
+        actor_activation = self._build_actor_activation(
+            getattr(self.args, "actor_activation", None)
+        )
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
+            activation=actor_activation,
             device=self.args.device,
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
@@ -127,3 +131,17 @@ class IRPO_Algorithm(nn.Module):
 
         if hasattr(self.env, "get_grid"):
             self.policy.actor.grid = self.env.get_grid()
+
+    def _build_actor_activation(self, activation_name):
+        if activation_name is None:
+            return nn.Tanh()
+
+        activation_key = str(activation_name).strip().lower()
+        if activation_key == "relu":
+            return nn.ReLU()
+        if activation_key == "tanh":
+            return nn.Tanh()
+
+        raise ValueError(
+            f"Unsupported actor activation '{activation_name}'. Use 'relu' or 'tanh'."
+        )

@@ -68,6 +68,10 @@ def seed_all(seed=0):
 
 
 def concat_csv_columnwise_and_delete(folder_path, output_file="output.csv"):
+    if not os.path.exists(folder_path):
+        print(f"Log folder not found at {folder_path}. Skipping CSV concatenation.")
+        return
+
     csv_files = [f for f in os.listdir(folder_path) if f.endswith(".csv")]
 
     if not csv_files:
