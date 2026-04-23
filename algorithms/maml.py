@@ -67,8 +67,16 @@ class MAML_Algorithm(nn.Module):
 
     def define_base_policy(self):
         # === Define policy === #
-        pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
-        goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        pos_idx = (
+            self.args.pos_idx
+            if getattr(self.args, "is_goal_conditioned", False)
+            else None
+        )
+        goal_idx = (
+            self.args.goal_idx
+            if getattr(self.args, "is_goal_conditioned", False)
+            else None
+        )
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,

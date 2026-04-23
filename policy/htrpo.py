@@ -51,7 +51,7 @@ class HTRPO_Learner(Base):
         is_discrete: bool,
         nupdates: int,
         env_name: str,
-        lr: float = 5e-4,
+        lr: float = 1e-3,
         batch_size: int = 4096,
         entropy_scaler: float = 1e-3,
         l2_reg: float = 1e-8,
@@ -100,7 +100,7 @@ class HTRPO_Learner(Base):
         )
         self.sync_obs_rms_to(self.actor, self.critic)
 
-        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=5e-4)
+        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=lr)
 
         self.steps = 0
         self.to(self.dtype).to(self.device)

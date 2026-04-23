@@ -455,7 +455,7 @@ class IRPO_Learner(Base):
 
         # Critic Mini-batch Updates
         batch_size = states.shape[0]
-        critic_epochs = 20  # Number of passes over the data
+        critic_epochs = 5  # Number of passes over the data
         num_minibatches = 4  # Split data into 4 chunks per epoch
         mb_size = max(1, batch_size // num_minibatches)
 
@@ -655,8 +655,8 @@ class IRPO_G_Learner(IRPO_Learner):
         noise_std: float,
         num_exp_updates: int,
         base_policy_update_type: str = "trpo",
-        lr: float = 3e-4,
-        critic_lr: float = 3e-4,
+        lr: float = 1e-2,
+        critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
         l2_reg: float = 1e-8,

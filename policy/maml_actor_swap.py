@@ -24,7 +24,8 @@ class MAML_AS_Learner(Base):
         timesteps: int,
         num_exp_updates: int,
         base_policy_update_type: str = "sgd",
-        lr: float = 3e-4,
+        lr: float = 1e-3,
+        critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
         l2_reg: float = 1e-8,
@@ -54,6 +55,7 @@ class MAML_AS_Learner(Base):
 
         # Learning rates
         self.lr = lr
+        self.critic_lr = critic_lr
 
         # Hyperparameters
         self.entropy_scaler = entropy_scaler
@@ -74,7 +76,8 @@ class MAML_AS_Learner(Base):
 
         # Optimizers for the critics
         self.critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=self.lr) for critic in self.critics
+            torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
+            for critic in self.critics
         ]
 
         # Tracking contributing (high reward-inducing) int rewards
