@@ -27,7 +27,7 @@ class TRPO_Algorithm(nn.Module):
         sampler = OnlineSampler(
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
+            episode_len=self.args.episode_len,
             batch_size=self.args.batch_size,
         )
 
@@ -49,8 +49,16 @@ class TRPO_Algorithm(nn.Module):
         return trainer.best_success_mean
 
     def define_policy(self):
-        pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
-        goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        pos_idx = (
+            self.args.pos_idx
+            if getattr(self.args, "is_goal_conditioned", False)
+            else None
+        )
+        goal_idx = (
+            self.args.goal_idx
+            if getattr(self.args, "is_goal_conditioned", False)
+            else None
+        )
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
