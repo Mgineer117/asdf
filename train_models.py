@@ -1,5 +1,10 @@
 import datetime
+import gc
 import uuid
+
+import matplotlib
+
+matplotlib.use("Agg")  # headless backend; avoids tk "main thread" GC errors
 
 import torch
 
@@ -42,3 +47,13 @@ if __name__ == "__main__":
             logger=logger, writer=writer, args=args, init_timesteps=current_timesteps
         )
         current_timesteps = irf.current_timesteps
+
+        try:
+            irf.extractor_env.close()
+        except Exception:
+            pass
+        del irf
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        writer.flush()

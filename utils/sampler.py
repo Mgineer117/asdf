@@ -142,6 +142,14 @@ class OnlineSampler(Base):
             if p.is_alive():
                 p.terminate()
                 p.join()
+            p.close()
+
+        # ✅ Close the queue so its feeder thread / shared-memory handles are released
+        try:
+            queue.close()
+            queue.join_thread()
+        except Exception:
+            pass
 
         # ✅ Merge memory PER POLICY
         policy_memories = [{} for _ in range(num_policies)]

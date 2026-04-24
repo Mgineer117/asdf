@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python visuals/irpo_escape_toy.py)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\); print\\(sys.version\\)\")",
+      "PowerShell(python --version)",
+      "PowerShell(python -c \"import torch, matplotlib; print\\(torch.__version__, matplotlib.__version__\\)\")",
+      "PowerShell(Get-Command python)",
+      "PowerShell(Get-ChildItem \"C:\\\\\" -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"python|conda|miniforge\" } | Select-Object FullName; Get-ChildItem \"C:\\\\Users\\\\Minjae Cho\" -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"python|conda|miniforge|venv|env\" } | Select-Object FullName)"
+    ]
+  }
+}

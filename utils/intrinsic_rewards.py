@@ -3,6 +3,10 @@ import os
 from abc import abstractmethod
 from math import ceil
 
+import matplotlib
+
+matplotlib.use("Agg")  # headless backend; avoids tk "main thread" GC errors
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -417,14 +421,6 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
 
             intrinsic_rewards = difference[:, indices] * signs
 
-        # self.reward_rms.update(intrinsic_rewards.cpu().numpy())
-        # var_tensor = torch.as_tensor(
-        #     self.reward_rms.var,
-        #     device=intrinsic_rewards.device,
-        #     dtype=intrinsic_rewards.dtype,
-        # )
-        # intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
-
         intrinsic_rewards = self.reward_rms.normalize_var_only(intrinsic_rewards)
 
         return intrinsic_rewards
@@ -552,7 +548,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
 
         if epochs < self.args.extractor_epochs:
             total_target_samples = int(
-                getattr(self.args, "extractor_total_samples", 500_000)
+                getattr(self.args, "extractor_total_samples", 200_000)
             )
             total_target_samples = max(1, total_target_samples)
             collect_batch_size = int(

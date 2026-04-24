@@ -117,7 +117,6 @@ class ExtractorTrainer:
         return step
 
     def collect_initial_data(self):
-        merged_batch = None
         total_goal = (
             self.target_samples
             if self.target_samples is not None
@@ -129,18 +128,34 @@ class ExtractorTrainer:
             np.linspace(1, self.collect_loops, num=checkpoint_count, dtype=int).tolist()
         )
 
+        merged_batch = None
+        write_idx = 0
+
         for i in range(self.collect_loops):
             batch_i, _ = self.sampler.collect_samples(self.env, self.policy, self.seed)
             loop_collected = batch_i["states"].shape[0]
-            total_collected += loop_collected
 
             if merged_batch is None:
-                merged_batch = batch_i
-            else:
+                capacity = (
+                    self.target_samples
+                    if self.target_samples is not None
+                    else self.collect_loops * loop_collected
+                )
+                merged_batch = {
+                    k: np.empty((capacity,) + v.shape[1:], dtype=v.dtype)
+                    for k, v in batch_i.items()
+                }
+
+            remaining = merged_batch["states"].shape[0] - write_idx
+            take = min(loop_collected, remaining)
+            if take > 0:
                 for key, value in batch_i.items():
-                    merged_batch[key] = np.concatenate(
-                        (merged_batch[key], value), axis=0
-                    )
+                    merged_batch[key][write_idx : write_idx + take] = value[:take]
+                write_idx += take
+            total_collected += loop_collected
+
+            # Free the per-loop batch immediately
+            del batch_i
 
             if (i + 1) in print_checkpoints:
                 print(
@@ -148,9 +163,12 @@ class ExtractorTrainer:
                     f"{min(total_collected, total_goal)}/{total_goal} collected"
                 )
 
-        if self.target_samples is not None and merged_batch is not None:
+            if write_idx >= merged_batch["states"].shape[0]:
+                break
+
+        if merged_batch is not None and write_idx < merged_batch["states"].shape[0]:
             for key in merged_batch.keys():
-                merged_batch[key] = merged_batch[key][: self.target_samples]
+                merged_batch[key] = merged_batch[key][:write_idx]
 
         return merged_batch
 

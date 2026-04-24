@@ -86,14 +86,7 @@ class MAML_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        if self.args.algo_name == "maml":
-            algo_class = MAML_Learner
-        elif self.args.algo_name == "maml_as":
-            algo_class = MAML_AS_Learner
-        elif self.args.algo_name == "maml_gd":
-            algo_class = MAML_GD_Learner
-
-        self.policy = algo_class(
+        self.policy = MAML_Learner(
             actor=actor,
             critic=critic,
             intrinsic_reward_fn=self.intrinsic_reward_fn,
