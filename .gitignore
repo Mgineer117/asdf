@@ -160,7 +160,7 @@ old_main.py
 
 # Ignore nohup output file (in any directory)
 nohup.out
-sweep_logs/
+sweep_logs/*
 
 # Ignore VS Code settings (entire .vscode folder)
 .vscode/
