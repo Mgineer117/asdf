@@ -3,10 +3,12 @@
 # Sizes:        [32,32], [512,512], [256,128,64]
 # Activations:  relu, tanh
 # 6 (size × activation) configs × 10 internal runs each.
-# Configs spread across 4 GPUs.
+# Europa has 2 GPUs: 3 configs on GPU 0, 3 configs on GPU 1.
 #
 # Critic mirrors actor (--critic-fc-dim = --actor-fc-dim).
 # Each child uses --num-runs 10 so all 10 seeds run sequentially in-process.
+# Children are nohup'd + disowned so the terminal returns immediately and
+# jobs survive your logout.
 
 set -u
 mkdir -p log
@@ -17,10 +19,10 @@ ENV="pointmaze-v4"
 CONFIGS=(
     "0|32 32|relu"
     "0|32 32|tanh"
-    "1|512 512|relu"
+    "0|512 512|relu"
     "1|512 512|tanh"
-    "2|256 128 64|relu"
-    "3|256 128 64|tanh"
+    "1|256 128 64|relu"
+    "1|256 128 64|tanh"
 )
 
 for cfg in "${CONFIGS[@]}"; do
