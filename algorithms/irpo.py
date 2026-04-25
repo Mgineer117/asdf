@@ -1,6 +1,9 @@
 import torch.nn as nn
 
 from policy.irpo import IRPO_G_Learner, IRPO_Learner
+from policy.irpo_is import IRPO_IS_Learner
+from policy.irpo_thompson import IRPO_Thompson_Learner
+from policy.irpo_trpo_final import IRPO_TRPOFinal_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.intrinsic_rewards import (
@@ -124,9 +127,32 @@ class IRPO_Algorithm(nn.Module):
         if self.goal_conditioned:
             self.policy = IRPO_G_Learner(env_name=self.args.env_name, **shared_kwargs)
         else:
-            self.policy = IRPO_Learner(
+            irpo_type = getattr(self.args, "irpo_type", "irpo")
+            # Main IRPO is Thompson-sampling argmax. `irpo_legacy` exposes the
+            # original deterministic-aggregation path for reference / debugging.
+            learner_cls = {
+                "irpo": IRPO_Thompson_Learner,
+                "irpo_thompson": IRPO_Thompson_Learner,
+                "irpo_is": IRPO_IS_Learner,
+                "irpo_trpo": IRPO_TRPOFinal_Learner,
+                "irpo_trpo_final": IRPO_TRPOFinal_Learner,
+                "irpo_legacy": IRPO_Learner,
+            }.get(irpo_type, IRPO_Thompson_Learner)
+
+            extra_kwargs = {
+                "min_base_updates": getattr(self.args, "min_base_updates", 1),
+            }
+            if learner_cls is IRPO_TRPOFinal_Learner:
+                extra_kwargs["trpo_switch_progress"] = getattr(
+                    self.args, "trpo_switch_progress", 0.5
+                )
+            if learner_cls is IRPO_Learner:
+                extra_kwargs.pop("min_base_updates", None)
+
+            self.policy = learner_cls(
                 aggregation_method=self.args.aggregation_method,
                 **shared_kwargs,
+                **extra_kwargs,
             )
 
         if hasattr(self.env, "get_grid"):

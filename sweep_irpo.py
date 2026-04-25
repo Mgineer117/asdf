@@ -55,17 +55,20 @@ def sweep_evaluate():
             args = override_args(init_args)
             args.seed = seed
             args.unique_id = unique_id
+            args.sweep_metric_prefix = f"seed_{seed}"
 
             # Apply W&B suggested hyperparameters
             for key, val in config.items():
                 setattr(args, key, val)
 
             perf = run(args, seed, unique_id, exp_time, is_sweep=True)
-            performances.append(perf)
+            performances.append(float(perf))
+            wandb.log({f"seed_{seed}/final_return": float(perf)})
 
-        # Log the final mean to the sweep controller
-        mean_perf = np.mean(performances)
-        wandb.log({"mean_return": mean_perf})
+        wandb.log({
+            "mean_return": float(np.mean(performances)),
+            "std_return": float(np.std(performances)),
+        })
 
 
 if __name__ == "__main__":

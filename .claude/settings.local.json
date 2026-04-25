@@ -6,7 +6,21 @@
       "PowerShell(python --version)",
       "PowerShell(python -c \"import torch, matplotlib; print\\(torch.__version__, matplotlib.__version__\\)\")",
       "PowerShell(Get-Command python)",
-      "PowerShell(Get-ChildItem \"C:\\\\\" -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"python|conda|miniforge\" } | Select-Object FullName; Get-ChildItem \"C:\\\\Users\\\\Minjae Cho\" -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"python|conda|miniforge|venv|env\" } | Select-Object FullName)"
+      "PowerShell(Get-ChildItem \"C:\\\\\" -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"python|conda|miniforge\" } | Select-Object FullName; Get-ChildItem \"C:\\\\Users\\\\Minjae Cho\" -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"python|conda|miniforge|venv|env\" } | Select-Object FullName)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/commands/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/config/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/config/envs/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/config/algos/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/commands/ppo/**)",
+      "Bash(python3 -m py_compile policy/irpo.py policy/irpo_is.py policy/irpo_trpo_final.py algorithms/irpo.py log/wandb_logger.py utils/functions.py sweep_irpo_arch.py sweep_irpo.py sweep_ppo.py)",
+      "Bash(python3 -m py_compile policy/irpo_thompson.py algorithms/irpo.py utils/get_args.py)",
+      "Bash(python3 -c ' *)",
+      "Bash(cd /home/minjae/research/asdf)",
+      "Read(//mnt/c/Users/Minjae Cho/AppData/Local/anthropic/claude-code/projects/--wsl-localhost-Ubuntu-24-04-home-minjae-research-asdf/log/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/log/**)",
+      "Read(//mnt/wsl/Ubuntu-24.04/home/minjae/research/asdf/**)"
     ]
   }
 }

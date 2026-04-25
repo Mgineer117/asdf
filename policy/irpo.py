@@ -168,6 +168,16 @@ class IRPO_Learner(Base):
             grads = tuple(g - self.lr * h for g, h in zip(grads, Hv))
         return grads
 
+    def _per_option_gradient(
+        self, option_idx: int, policy_dict: dict, gradient_dict: dict
+    ):
+        """Hook returning the per-option gradient w.r.t. base-policy parameters.
+
+        Default IRPO behaviour: backpropagate through the inner-update graph.
+        Subclasses (e.g. IRPO_IS) override to use an alternative estimator.
+        """
+        return self.backprop(policy_dict, gradient_dict, option_idx)
+
     def measure_kl_among_exp_policies(self, batch: dict):
         if self.num_options <= 1:
             return 0.0
@@ -217,6 +227,10 @@ class IRPO_Learner(Base):
         total_timesteps += init_batch["states"].shape[0]
 
         loss_dict_list = []
+        # Cache the latest exploratory-rollout batches keyed by option index so
+        # subclasses (e.g. IRPO_IS) can compute alternative gradients on samples
+        # drawn from the exploratory policies.
+        self._last_batches: dict[int, dict] = {}
         # EXPLORATORY PHASE: Iterate over each intrinsic reward type
         for j in range(self.num_exp_updates):
             flag = j == self.num_exp_updates - 1
@@ -264,8 +278,11 @@ class IRPO_Learner(Base):
                 # lr_dict[actor_idx] = exp_dict["used_lr"]
                 total_exp_update_time += exp_dict["update_time"]
 
-                # Update performance gains only on the fully adapted policy
                 if flag:
+                    # Snapshot the final-step exploratory batch + actor for any
+                    # downstream alternative gradient (e.g. IRPO_IS).
+                    self._last_batches[i] = batch
+                    # Update performance gains only on the fully adapted policy
                     self.perf_gains[i] = (
                         self.beta * self.perf_gains[i]
                         + (1 - self.beta) * exp_dict["ext_return"]
@@ -282,10 +299,18 @@ class IRPO_Learner(Base):
         else:
             temperature = max(1e-8, 1.0 - learning_progress / self.temperature)
 
+        # Snapshot context that subclasses (e.g. IRPO_TRPOFinal) may consult.
+        self._init_batch = init_batch
+        self._temperature = temperature
+
         if temperature <= 1e-8 or len(active_indices) == 1:
+            self._collapsed = True
             active_gains = self.perf_gains[active_indices]
             best_local_idx = active_indices[torch.argmax(active_gains).item()]
-            gradients = self.backprop(policy_dict, gradient_dict, best_local_idx)
+            gradients = self._per_option_gradient(
+                best_local_idx, policy_dict, gradient_dict
+            )
+            self._collapsed = False
         else:
             active_gains = self.perf_gains[active_indices]
             # REVERSE SOFTMAX: Amplify low return option idx (Lower bound maximization)
@@ -306,7 +331,8 @@ class IRPO_Learner(Base):
                 )
 
             outer_gradients = [
-                self.backprop(policy_dict, gradient_dict, i) for i in active_indices
+                self._per_option_gradient(i, policy_dict, gradient_dict)
+                for i in active_indices
             ]
 
             outer_gradients_transposed = zip(*outer_gradients)
@@ -368,35 +394,36 @@ class IRPO_Learner(Base):
 
         #### for all exploratory policies ####
         supp_dict = {}
-        for option_idx, policy in enumerate(self.final_exp_policies):
-            state, _ = env.reset(seed=seed)
-            frames = []
-
-            img = env.render()
-            if img is not None:
-                frames.append(img)
-
-            done = False
-            max_steps = getattr(env, "max_steps", 1000)
-            step_count = 0
-
-            while not done and step_count < max_steps:
-                with torch.no_grad():
-                    a, _ = policy(state)
-                    a = a.cpu().numpy().flatten()
-
-                state, _, term, trunc, _ = env.step(a)
-                done = term or trunc
-                step_count += 1
+        if getattr(self.intrinsic_reward_fn.args, "rendering", False):
+            for option_idx, policy in enumerate(self.final_exp_policies):
+                state, _ = env.reset(seed=seed)
+                frames = []
 
                 img = env.render()
                 if img is not None:
                     frames.append(img)
 
-            if len(frames) > 0:
-                # Convert to (T, C, H, W) shape, standard for wandb.Video and TensorBoard
-                gif = np.array(frames).transpose(0, 3, 1, 2)
-                supp_dict[f"rendering{option_idx}"] = gif
+                done = False
+                max_steps = getattr(env, "max_steps", 1000)
+                step_count = 0
+
+                while not done and step_count < max_steps:
+                    with torch.no_grad():
+                        a, _ = policy(state)
+                        a = a.cpu().numpy().flatten()
+
+                    state, _, term, trunc, _ = env.step(a)
+                    done = term or trunc
+                    step_count += 1
+
+                    img = env.render()
+                    if img is not None:
+                        frames.append(img)
+
+                if len(frames) > 0:
+                    # Convert to (T, C, H, W) shape, standard for wandb.Video and TensorBoard
+                    gif = np.array(frames).transpose(0, 3, 1, 2)
+                    supp_dict[f"rendering{option_idx}"] = gif
 
         self.eval()
 

@@ -29,6 +29,7 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
     args.logdir = os.path.join(args.logdir, args.group)
 
     default_cfg = vars(args)
+    sweep_metric_prefix = getattr(args, "sweep_metric_prefix", None)
     logger = WandbLogger(
         config=default_cfg,
         project=args.project,
@@ -37,6 +38,7 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
         log_dir=args.logdir,
         log_txt=True,
         is_sweep=is_sweep,
+        sweep_metric_prefix=sweep_metric_prefix,
     )
     logger.save_config(default_cfg, verbose=True)
 

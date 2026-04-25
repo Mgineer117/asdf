@@ -160,8 +160,9 @@ def get_args():
     )
     parser.add_argument(
         "--critic-fc-dim",
-        type=list,
+        type=int,
         default=[128, 128],
+        nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Critic network.",
     )
 
@@ -207,6 +208,18 @@ def get_args():
         type=float,
         default=0.2,
         help="IRPO temperature annealing horizon in learning progress. Temperature linearly decays to 0 when learning_progress reaches this value.",
+    )
+    parser.add_argument(
+        "--min-base-updates",
+        type=int,
+        default=1,
+        help="Thompson-sampling IRPO: once an option is sampled, run at least this many base-policy updates with it before re-sampling.",
+    )
+    parser.add_argument(
+        "--trpo-switch-progress",
+        type=float,
+        default=0.5,
+        help="IRPO_TRPO: learning-progress threshold p above which we switch from IRPO to a vanilla TRPO update on the best final exploratory policy.",
     )
     parser.add_argument(
         "--find-lr",
@@ -316,7 +329,7 @@ def get_args():
     parser.add_argument(
         "--gae",
         type=float,
-        default=0.98,
+        default=0.99,
         help="The Lambda parameter for Generalized Advantage Estimation (GAE), balancing bias and variance.",
     )
     parser.add_argument(
