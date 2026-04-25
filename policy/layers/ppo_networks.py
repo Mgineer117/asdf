@@ -40,6 +40,11 @@ class PPO_Actor(Base):
 
         # Save the original input shape so we can rebuild flattened states
         self.input_shape = input_dim
+        self.state_dim = (
+            self.input_shape
+            if isinstance(self.input_shape, int)
+            else np.prod(self.input_shape)
+        )
 
         # Check if observation is an image (C, H, W) or a 1D vector
         if isinstance(input_dim, (tuple, list)) and len(input_dim) == 3:
