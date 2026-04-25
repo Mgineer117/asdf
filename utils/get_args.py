@@ -212,7 +212,7 @@ def get_args():
     parser.add_argument(
         "--min-base-updates",
         type=int,
-        default=1,
+        default=5,
         help="Thompson-sampling IRPO: once an option is sampled, run at least this many base-policy updates with it before re-sampling.",
     )
     parser.add_argument(
