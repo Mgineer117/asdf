@@ -193,7 +193,7 @@ def get_args():
     parser.add_argument(
         "--aggregation-method",
         type=str,
-        default="softmax",
+        default="argmax",
         help="The method used to aggregate intrinsic rewards (e.g., 'uniform', 'argmax', 'softmax').",
     )
     parser.add_argument(

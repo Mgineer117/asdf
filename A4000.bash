@@ -10,15 +10,19 @@
 # nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --num-exp-updates 10 --gpu-idx 0 --temperature 0.5 &
 # nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --num-exp-updates 10 --gpu-idx 0 --temperature 0.8 &
 
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 5 --gpu-idx 0 &
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 10 --gpu-idx 0 &
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 15 --gpu-idx 0 &
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 20 --gpu-idx 0 &
+# nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 5 --gpu-idx 0 &
+# nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 10 --gpu-idx 0 &
+# nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method argmax --num-exp-updates 15 --gpu-idx 0 &
+nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method argmax --num-exp-updates 20 --beta 0.0 --gpu-idx 0 &
+nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method argmax --num-exp-updates 20 --beta 0.9 --gpu-idx 0 &
+nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method argmax --num-exp-updates 20 --beta 0.99 --gpu-idx 0 &
 
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method uniform --num-exp-updates 5 --gpu-idx 0 &
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method uniform --num-exp-updates 10 --gpu-idx 0 &
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method uniform --num-exp-updates 15 --gpu-idx 0 &
-nohup python3 main.py --project trap_reward --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation_method uniform --num-exp-updates 20 --gpu-idx 0 &
+# nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method uniform --num-exp-updates 5 --gpu-idx 0 &
+# nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method uniform --num-exp-updates 10 --gpu-idx 0 &
+# nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method uniform --num-exp-updates 15 --gpu-idx 0 &
+nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method uniform --num-exp-updates 20 --beta 0.0 --gpu-idx 0 &
+nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method uniform --num-exp-updates 20 --beta 0.9 --gpu-idx 0 &
+nohup python3 main.py --project trap_reward2 --env-name fourrooms-v2 --algo-name irpo --num-runs 10 --aggregation-method uniform --num-exp-updates 20 --beta 0.99 --gpu-idx 0 &
 
 
 # nohup python3 main.py --project pacman --env-name pacman --algo-name irpo --num-runs 10 --num-exp-updates 5 --gpu-idx 3 &
