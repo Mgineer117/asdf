@@ -29,25 +29,25 @@ conda activate irpo
 # === Run Experiments in Parallel === # 
 # Removed the hardcoded CUDA variables. Slurm handles this for you.
 # Added a 3-second sleep between launches to prevent driver timeout during PyTorch initialization.
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 0 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 0 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 1 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 1 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 2 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 2 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 3 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 3 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 4 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 4 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 5 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 5 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 6 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 6 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 7 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 7 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 8 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 8 --gpu-idx 0 &
 sleep 3
-python3 main.py --project Exp-IRPO --env-name maze-v3 --algo-name maml --seed 9 --gpu-idx 0 &
+python3 main.py --project NEW_IRPO --env-name maze-v3 --algo-name maml --seed 9 --gpu-idx 0 &
 
 
 # === Wait for all background jobs to finish ===
