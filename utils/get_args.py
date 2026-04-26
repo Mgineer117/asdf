@@ -129,8 +129,8 @@ def get_args():
     parser.add_argument(
         "--actor-activation",
         type=str,
-        default=None,
-        help="Activation function for the actor network (e.g. relu or tanh).",
+        default="relu",
+        help="Activation function shared by actor and critic networks (relu or tanh).",
     )
     parser.add_argument(
         "--override-results",
@@ -154,14 +154,14 @@ def get_args():
     parser.add_argument(
         "--actor-fc-dim",
         type=int,
-        default=[128, 128],
+        default=[256, 128, 64],
         nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Actor network.",
     )
     parser.add_argument(
         "--critic-fc-dim",
         type=int,
-        default=[128, 128],
+        default=[256, 128, 64],
         nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Critic network.",
     )
@@ -329,7 +329,7 @@ def get_args():
     parser.add_argument(
         "--gae",
         type=float,
-        default=0.99,
+        default=0.98,
         help="The Lambda parameter for Generalized Advantage Estimation (GAE), balancing bias and variance.",
     )
     parser.add_argument(

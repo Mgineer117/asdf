@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+from utils.functions import build_activation
 from policy.trpo import TRPO_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.sampler import OnlineSampler
@@ -50,14 +51,21 @@ class HTRPO_Algorithm(nn.Module):
         return trainer.best_success_mean
 
     def define_policy(self):
+        activation = build_activation(getattr(self.args, "actor_activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
+            activation=activation,
             device=self.args.device,
         )
-        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+        critic = PPO_Critic(
+            self.args.state_dim,
+            hidden_dim=self.args.critic_fc_dim,
+            activation=activation,
+            device=self.args.device,
+        )
 
         env_name, _, _ = self.args.env_name.partition("-")
         self.policy = HTRPO_Learner(

@@ -1,7 +1,7 @@
 {
     "hl_timesteps": 4e6,
-    "sub_timesteps": 6e6,
-    "timesteps": 3e7,
+    "sub_timesteps": 6e5,
+    "timesteps": 1e7,
     "gamma": 0.998,
     "num_options": 4,
     "int_reward_type": "allo",

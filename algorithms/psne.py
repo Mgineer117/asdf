@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+from utils.functions import build_activation
 from policy.psne import PSNE_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.sampler import OnlineSampler
@@ -79,14 +80,21 @@ class PSNE_Algorithm(nn.Module):
             env=self.env, policies=[self.uniform_random_policy], seed=self.args.seed
         )
 
+        activation = build_activation(getattr(self.args, "actor_activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
+            activation=activation,
             device=self.args.device,
         )
-        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+        critic = PPO_Critic(
+            self.args.state_dim,
+            hidden_dim=self.args.critic_fc_dim,
+            activation=activation,
+            device=self.args.device,
+        )
 
         self.policy = PSNE_Learner(
             actor=actor,

@@ -4,9 +4,24 @@ import random
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from log.wandb_logger import WandbLogger
+
+
+def build_activation(activation_name):
+    """Resolve an activation-name arg into an nn.Module. Default: ReLU."""
+    if activation_name is None:
+        return nn.ReLU()
+    key = str(activation_name).strip().lower()
+    if key == "relu":
+        return nn.ReLU()
+    if key == "tanh":
+        return nn.Tanh()
+    raise ValueError(
+        f"Unsupported activation '{activation_name}'. Use 'relu' or 'tanh'."
+    )
 
 
 def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):

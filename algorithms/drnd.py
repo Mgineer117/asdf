@@ -5,6 +5,7 @@ from policy.drnd import DRND_Learner
 from policy.layers.drnd_networks import DRNDModel
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
+from utils.functions import build_activation
 from utils.sampler import OnlineSampler
 
 
@@ -57,14 +58,21 @@ class DRND_Algorithm(nn.Module):
         """
         pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
         goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        activation = build_activation(getattr(self.args, "actor_activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
+            activation=activation,
             device=self.args.device,
         )
-        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+        critic = PPO_Critic(
+            self.args.state_dim,
+            hidden_dim=self.args.critic_fc_dim,
+            activation=activation,
+            device=self.args.device,
+        )
 
         feature_dim = (
             self.args.feature_dim if self.args.feature_dim else self.args.state_dim
@@ -76,7 +84,10 @@ class DRND_Algorithm(nn.Module):
             device=self.args.device,
         )
         drnd_critic = PPO_Critic(
-            self.args.state_dim, hidden_dim=self.args.critic_fc_dim
+            self.args.state_dim,
+            hidden_dim=self.args.critic_fc_dim,
+            activation=activation,
+            device=self.args.device,
         )
 
         self.policy = DRND_Learner(

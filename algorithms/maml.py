@@ -1,6 +1,7 @@
 import torch.nn as nn
 
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+from utils.functions import build_activation
 from policy.maml import MAML_Learner
 from policy.maml_actor_swap import MAML_AS_Learner
 from policy.maml_grad_swap import MAML_GD_Learner
@@ -77,14 +78,21 @@ class MAML_Algorithm(nn.Module):
             if getattr(self.args, "is_goal_conditioned", False)
             else None
         )
+        activation = build_activation(getattr(self.args, "actor_activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
+            activation=activation,
             device=self.args.device,
         )
-        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+        critic = PPO_Critic(
+            self.args.state_dim,
+            hidden_dim=self.args.critic_fc_dim,
+            activation=activation,
+            device=self.args.device,
+        )
 
         self.policy = MAML_Learner(
             actor=actor,

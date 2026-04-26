@@ -9,6 +9,7 @@ from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from policy.ppo import PPO_Learner
 from policy.uniform_random import UniformRandom
 from trainer.hrl_trainer import HRLTrainer
+from utils.functions import build_activation
 from utils.intrinsic_rewards import ALLOIntRewardFunctions, RandomIntRewardFunctions
 from utils.sampler import HLSampler, OnlineSampler
 
@@ -97,6 +98,7 @@ class HRL(nn.Module):
         # === Define policy === #
         pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
         goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
+        activation = build_activation(getattr(self.args, "actor_activation", None))
         self.policies = nn.ModuleList([])
         for i in range(self.args.num_options):
             actor = PPO_Actor(
@@ -104,8 +106,13 @@ class HRL(nn.Module):
                 hidden_dim=self.args.actor_fc_dim,
                 action_dim=self.args.action_dim,
                 is_discrete=self.args.is_discrete,
+                activation=activation,
             )
-            critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+            critic = PPO_Critic(
+                self.args.state_dim,
+                hidden_dim=self.args.critic_fc_dim,
+                activation=activation,
+            )
 
             policy = PPO_Learner(
                 actor=actor,
@@ -140,9 +147,15 @@ class HRL(nn.Module):
             hidden_dim=self.args.actor_fc_dim,
             action_dim=int(self.args.num_options + 1),
             is_discrete=True,
+            activation=activation,
             device=self.args.device,
         )
-        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+        critic = PPO_Critic(
+            self.args.state_dim,
+            hidden_dim=self.args.critic_fc_dim,
+            activation=activation,
+            device=self.args.device,
+        )
 
         self.hl_policy = HRL_Learner(
             actor=actor,
