@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=trpo
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=IllinoisComputes-GPU
+#SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=10
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=3-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=trpo.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu

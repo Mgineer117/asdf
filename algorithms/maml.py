@@ -3,8 +3,6 @@ import torch.nn as nn
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from utils.functions import build_activation
 from policy.maml import MAML_Learner
-from policy.maml_actor_swap import MAML_AS_Learner
-from policy.maml_grad_swap import MAML_GD_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.intrinsic_rewards import ALLOIntRewardFunctions, RandomIntRewardFunctions
 from utils.sampler import OnlineSampler
