@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Submit pacman + amidar SLURM jobs for every algorithm.
 
-ALGOS=(drnd hrl htrpo irpo irpo_random maml ppo psne trpo)
+ALGOS=(drnd hrl irpo ppo psne trpo)
 ENVS=(pacman amidar)
 
 for algo in "${ALGOS[@]}"; do
