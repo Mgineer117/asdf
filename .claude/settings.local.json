@@ -20,7 +20,8 @@
       "Bash(cd /home/minjae/research/asdf)",
       "Read(//mnt/c/Users/Minjae Cho/AppData/Local/anthropic/claude-code/projects/--wsl-localhost-Ubuntu-24-04-home-minjae-research-asdf/log/**)",
       "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/log/**)",
-      "Read(//mnt/wsl/Ubuntu-24.04/home/minjae/research/asdf/**)"
+      "Read(//mnt/wsl/Ubuntu-24.04/home/minjae/research/asdf/**)",
+      "Read(//mnt/**)"
     ]
   }
 }
