@@ -129,7 +129,7 @@ def get_args():
     parser.add_argument(
         "--actor-activation",
         type=str,
-        default="relu",
+        default="tanh",
         help="Activation function shared by actor and critic networks (relu or tanh).",
     )
     parser.add_argument(
@@ -154,7 +154,7 @@ def get_args():
     parser.add_argument(
         "--actor-fc-dim",
         type=int,
-        default=[256, 128, 64],
+        default=[128, 128],  # [256, 128, 64],
         nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Actor network.",
     )
