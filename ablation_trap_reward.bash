@@ -13,7 +13,16 @@ PROJECT="ablation_trap_reward"
 ENV="fourrooms-v2"
 GPU=${GPU:-0}
 NUM_EXP=(2 5 10 20)
-BASELINES=(ppo trpo drnd hrl htrpo maml psne irpo_random)
+BASELINES=(ppo) # trpo drnd hrl htrpo maml psne irpo_random)
+
+# Self-detach so the script survives terminal exit (SIGHUP).
+if [ -z "${DETACHED:-}" ]; then
+    mkdir -p log
+    DETACHED=1 nohup bash "$0" "$@" > "log/${PROJECT}.master.out" 2>&1 &
+    disown
+    echo "Detached ${0} as PID $! — tail log/${PROJECT}.master.out"
+    exit 0
+fi
 
 # IRPO (default = Thompson) with varying num_exp_updates
 for k in "${NUM_EXP[@]}"; do

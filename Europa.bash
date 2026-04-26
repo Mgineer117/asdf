@@ -1,47 +1,60 @@
 #!/usr/bin/env bash
-# EUROPA — Actor architecture ablation using PPO on pointmaze-v4.
-# Sizes:        [32,32], [512,512], [256,128,64]
-# Activations:  relu, tanh
-# 6 (size × activation) configs × 10 internal runs each.
-# Europa has 2 GPUs: 3 configs on GPU 0, 3 configs on GPU 1.
+# EUROPA — IRPO ablations on fourrooms-v2 across 2 GPUs.
+#   Aggregation method ∈ {uniform, argmax, softmax}     → 3 jobs
+#   Temperature        ∈ {0.2, 0.5, 0.8, 1.0} (softmax) → 4 jobs
+# Total 7 configs × 10 internal runs each.
 #
-# Critic mirrors actor (--critic-fc-dim = --actor-fc-dim).
-# Each child uses --num-runs 10 so all 10 seeds run sequentially in-process.
+# GPU placement (split roughly evenly across the 2 GPUs):
+#   GPU 0 → agg: uniform, agg: softmax, temp: 0.5, temp: 1.0
+#   GPU 1 → agg: argmax,  temp: 0.2,    temp: 0.8
+#
 # Children are nohup'd + disowned so the terminal returns immediately and
-# jobs survive your logout.
+# jobs survive logout. Monitor with: tail -f log/ablation_*_fourrooms-v2_*.out
 
 set -u
 mkdir -p log
-PROJECT="ablation_arch_ppo"
-ENV="pointmaze-v4"
+ENV="fourrooms-v2"
 
-# (gpu, "arch dims", activation)
+# (gpu, kind, value)  kind ∈ {agg, temp}
 CONFIGS=(
-    "0|32 32|relu"
-    "0|32 32|tanh"
-    "0|512 512|relu"
-    "1|512 512|tanh"
-    "1|256 128 64|relu"
-    "1|256 128 64|tanh"
+    "0|agg|uniform"
+    "1|agg|argmax"
+    "0|agg|softmax"
+    "1|temp|0.2"
+    "0|temp|0.5"
+    "1|temp|0.8"
+    "0|temp|1.0"
 )
 
 for cfg in "${CONFIGS[@]}"; do
-    IFS='|' read -r gpu arch act <<< "${cfg}"
-    tag=$(echo "${arch}" | tr ' ' '-')
-    # shellcheck disable=SC2086
-    nohup python3 main.py \
-        --project "${PROJECT}" \
-        --env-name "${ENV}" \
-        --algo-name ppo \
-        --actor-fc-dim ${arch} \
-        --critic-fc-dim ${arch} \
-        --actor-activation "${act}" \
-        --num-runs 10 \
-        --gpu-idx "${gpu}" \
-        > "log/${PROJECT}_${tag}_${act}.out" 2>&1 &
+    IFS='|' read -r gpu kind val <<< "${cfg}"
+    if [ "${kind}" = "agg" ]; then
+        project="ablation_aggregation"
+        tag="${project}_${ENV}_${val}"
+        nohup python3 main.py \
+            --project "${project}" \
+            --env-name "${ENV}" \
+            --algo-name irpo \
+            --aggregation-method "${val}" \
+            --num-runs 10 \
+            --gpu-idx "${gpu}" \
+            > "log/${tag}.out" 2>&1 &
+    else
+        project="ablation_temperature"
+        tag="${project}_${ENV}_t${val}"
+        nohup python3 main.py \
+            --project "${project}" \
+            --env-name "${ENV}" \
+            --algo-name irpo \
+            --aggregation-method softmax \
+            --temperature "${val}" \
+            --num-runs 10 \
+            --gpu-idx "${gpu}" \
+            > "log/${tag}.out" 2>&1 &
+    fi
     sleep 3
 done
 
 disown -a
-echo "Launched ${#CONFIGS[@]} PPO arch configs in background. PIDs:"
+echo "Launched ${#CONFIGS[@]} fourrooms-v2 ablation configs in background. PIDs:"
 jobs -p

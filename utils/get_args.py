@@ -117,7 +117,7 @@ def get_args():
     parser.add_argument(
         "--beta",
         type=float,
-        default=0.95,
+        default=0.0,
         help="The learning rate for the Actor network optimizer (used in standard baselines like PPO).",
     )
     parser.add_argument(
@@ -148,7 +148,7 @@ def get_args():
     parser.add_argument(
         "--eps-clip",
         type=float,
-        default=0.1,
+        default=0.2,
         help="The clipping parameter 'epsilon' used in the PPO objective function to constrain policy updates (typically 0.1 to 0.2).",
     )
     parser.add_argument(
@@ -161,7 +161,7 @@ def get_args():
     parser.add_argument(
         "--critic-fc-dim",
         type=int,
-        default=[256, 128, 64],
+        default=[128, 128],
         nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Critic network.",
     )
@@ -194,7 +194,7 @@ def get_args():
     parser.add_argument(
         "--aggregation-method",
         type=str,
-        default="argmax",
+        default="softmax",
         help="The method used to aggregate intrinsic rewards (e.g., 'uniform', 'argmax', 'softmax').",
     )
     parser.add_argument(

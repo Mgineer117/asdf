@@ -11,6 +11,15 @@ PROJECT="ablation_is"
 ENV="pointmaze-v4"
 GPU=${GPU:-0}
 
+# Self-detach so the script survives terminal exit (SIGHUP).
+if [ -z "${DETACHED:-}" ]; then
+    mkdir -p log
+    DETACHED=1 nohup bash "$0" "$@" > "log/${PROJECT}.master.out" 2>&1 &
+    disown
+    echo "Detached ${0} as PID $! — tail log/${PROJECT}.master.out"
+    exit 0
+fi
+
 for irpo_type in irpo irpo_is; do
     nohup python3 main.py \
         --project "${PROJECT}" \

@@ -7,6 +7,15 @@ PROJECT="ablation_base_update"
 ENV="pointmaze-v4"
 GPU=${GPU:-0}
 
+# Self-detach so the script survives terminal exit (SIGHUP).
+if [ -z "${DETACHED:-}" ]; then
+    mkdir -p log
+    DETACHED=1 nohup bash "$0" "$@" > "log/${PROJECT}.master.out" 2>&1 &
+    disown
+    echo "Detached ${0} as PID $! — tail log/${PROJECT}.master.out"
+    exit 0
+fi
+
 for update_type in trpo sgd; do
     nohup python3 main.py \
         --project "${PROJECT}" \
