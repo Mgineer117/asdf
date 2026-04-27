@@ -9,10 +9,12 @@ EPI_LENGTH = {
     "mazeG-v1": 100,
     "mazeG-v2": 100,
     "mazeG-v3": 100,
+    "pointmaze-v0": 500,
     "pointmaze-v1": 500,
     "pointmaze-v2": 500,
     "pointmaze-v3": 500,
     "pointmaze-v4": 500,
+    "pointmazeG-v0": 500,
     "pointmazeG-v1": 500,
     "pointmazeG-v2": 500,
     "pointmazeG-v3": 500,
@@ -64,6 +66,12 @@ GOAL_IDX = {
 
 
 POINTMAZE_G_MAPS = {
+    "pointmaze-v0": [
+        [1, 1, 1, 1, 1],
+        [1, "c", 1, "c", 1],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+    ],
     "pointmaze-v1": [
         [1, 1, 1, 1, 1, 1],
         [1, "c", 1, "c", 0, 1],
@@ -100,6 +108,12 @@ POINTMAZE_G_MAPS = {
 
 
 POINTMAZE_MAPS = {
+    "pointmaze-v0": [
+        [1, 1, 1, 1, 1],
+        [1, "r", 1, "g", 1],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+    ],
     "pointmaze-v1": [
         [1, 1, 1, 1, 1, 1],
         [1, "r", 1, "g", 0, 1],

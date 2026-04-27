@@ -11,9 +11,14 @@ from torch.distributions import Normal
 import matplotlib.pyplot as plt
 from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+from utils import ANTMAZE_G_MAPS, POINTMAZE_G_MAPS
 from utils.intrinsic_rewards import BaseIntRewardFunctions
 from utils.rl import *
 from utils.sampler import OnlineSampler
+
+
+def _count_candidate_goals(maze_map):
+    return sum(cell == "c" for row in maze_map for cell in row)
 
 
 NUM_GOALS = {
@@ -21,16 +26,14 @@ NUM_GOALS = {
     "mazeG-v1": 3,
     "mazeG-v2": 4,
     "mazeG-v3": 4,
-    "pointmazeG-v1": 2,
-    "pointmazeG-v2": 2,
-    "pointmazeG-v3": 3,
-    "pointmazeG-v4": 4,
-    "antmazeG-v1": 2,
-    "antmazeG-v2": 2,
-    "antmazeG-v3": 2,
-    "antmazeG-v4": 3,
-    "antmazeG-v5": 3,
-    "antmazeG-v6": 2,
+    **{
+        env_name.replace("pointmaze-", "pointmazeG-"): _count_candidate_goals(maze_map)
+        for env_name, maze_map in POINTMAZE_G_MAPS.items()
+    },
+    **{
+        env_name.replace("antmaze-", "antmazeG-"): _count_candidate_goals(maze_map)
+        for env_name, maze_map in ANTMAZE_G_MAPS.items()
+    },
 }
 
 

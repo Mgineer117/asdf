@@ -1,10 +1,15 @@
-import ale_py
 import gymnasium as gym
 
 import gymnasium_robotics
 
+try:
+    import ale_py
+except ModuleNotFoundError:
+    ale_py = None
+
 gym.register_envs(gymnasium_robotics)
-gym.register_envs(ale_py)
+if ale_py is not None:
+    gym.register_envs(ale_py)
 
 from utils.__init__ import (
     ANTMAZE_G_MAPS,

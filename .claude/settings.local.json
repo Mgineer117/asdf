@@ -21,7 +21,11 @@
       "Read(//mnt/c/Users/Minjae Cho/AppData/Local/anthropic/claude-code/projects/--wsl-localhost-Ubuntu-24-04-home-minjae-research-asdf/log/**)",
       "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/asdf/log/**)",
       "Read(//mnt/wsl/Ubuntu-24.04/home/minjae/research/asdf/**)",
-      "Read(//mnt/**)"
+      "Read(//mnt/**)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/minjae/research/**)",
+      "Bash(python3 visuals/irpo_sparse_vs_dense.py)",
+      "Bash(python3 -c \"import sys; print\\(sys.version\\); import numpy; import matplotlib\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -lc \"cd /home/minjae/research/asdf && python3 visuals/irpo_sparse_vs_dense.py\")"
     ]
   }
 }
