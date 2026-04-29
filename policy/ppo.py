@@ -58,6 +58,7 @@ class PPO_Learner(Base):
         self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
             self.optimizer, lr_lambda=self.lr_lambda
         )
+        self.wall_clock_time = 0
 
         #
         self.to(self.dtype).to(self.device)
@@ -79,6 +80,7 @@ class PPO_Learner(Base):
     def learn(self, env, sampler, seed, **kwargs):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
+        t_start = time.time()
 
         # Collect initial data with the base policy
         batch, sample_time = sampler.collect_samples(env, self, seed)
@@ -183,6 +185,8 @@ class PPO_Learner(Base):
         self.lr_scheduler.step()
 
         update_time = time.time() - update_time
+        total_time = time.time() - t_start
+        self.wall_clock_time += total_time
 
         # Logging
         loss_dict = {
@@ -196,6 +200,9 @@ class PPO_Learner(Base):
             f"{self.name}/analytics/avg_ext_returns": returns.mean().item(),
             f"{self.name}/analytics/policy_lr": self.optimizer.param_groups[0]["lr"],
             f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[1]["lr"],
+            f"{self.name}/analytics/wall_clock_time (hr)": self.wall_clock_time
+            / 3600.0,
+            f"{self.name}/time_profile/total_sec": total_time,
             f"{self.name}/time_profile/sample_time": sample_time,
             f"{self.name}/time_profile/update_time": update_time,
         }
