@@ -30,19 +30,22 @@ CONFIGS=(
 for cfg in "${CONFIGS[@]}"; do
     IFS='|' read -r algo env <<< "${cfg}"
     tag="${PROJECT}_${algo}_${env}"
-    echo "=== running ${tag} ==="
-    start=$(date +%s)
-    python3 main.py \
-        --project "${PROJECT}" \
-        --env-name "${env}" \
-        --algo-name "${algo}" \
-        --num-runs 3 \
-        --gpu-idx "${GPU}" \
-        > "log/${tag}.out" 2>&1
-    rc=$?
-    end=$(date +%s)
-    secs=$((end - start))
-    echo "wall_clock_seconds=${secs}  exit=${rc}" | tee -a "log/${tag}.out"
+    echo "=== launching ${tag} (gpu ${GPU}) ==="
+    (
+        start=$(date +%s)
+        python3 main.py \
+            --project "${PROJECT}" \
+            --env-name "${env}" \
+            --algo-name "${algo}" \
+            --num-runs 3 \
+            --gpu-idx "${GPU}" \
+            > "log/${tag}.out" 2>&1
+        rc=$?
+        end=$(date +%s)
+        secs=$((end - start))
+        echo "wall_clock_seconds=${secs}  exit=${rc}" | tee -a "log/${tag}.out"
+    ) &
+    sleep 3
 done
 
 echo "=== done; per-run wall-clock summary ==="
