@@ -134,7 +134,7 @@ class HRL_Learner(Base):
         truncations = self.preprocess_state(batch["truncations"])
         old_logprobs = self.preprocess_state(batch["logprobs"])
 
-        self.record_state_visitations(states)
+        # self.record_state_visitations(states)
         timesteps = states.shape[0]
 
         # Compute advantages and returns

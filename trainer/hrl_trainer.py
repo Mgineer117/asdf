@@ -1,7 +1,6 @@
 import os
 import random
 import time
-from collections import deque
 from copy import deepcopy
 
 import numpy as np
@@ -12,44 +11,19 @@ from trainer.base_trainer import BaseTrainer
 
 
 class HRLTrainer(BaseTrainer):
-    def __init__(
-        self,
-        env,
-        hl_policy,
-        policies,
-        intrinsic_reward_fn,
-        hl_sampler,
-        sampler,
-        logger,
-        writer,
-        init_timesteps=0,
-        timesteps=1_000_000,
-        hl_timesteps=1_000_000,
-        log_interval=100,
-        eval_num=10,
-        rendering=False,
-        seed=0,
-    ):
-        self.env = env
-        self.hl_policy = hl_policy
-        self.policies = policies
-        self.intrinsic_reward_fn = intrinsic_reward_fn
-        self.num_vectors = len(policies) - 1
-        self.hl_sampler = hl_sampler
-        self.sampler = sampler
-        self.logger = logger
-        self.writer = writer
-        self.eval_num = eval_num
-        self.rendering = rendering
-        self.seed = seed
+    def __init__(self, **kwargs):
+        self.hl_policy = kwargs.pop("hl_policy")
+        self.policies = kwargs.pop("policies")
+        self.intrinsic_reward_fn = kwargs.pop("intrinsic_reward_fn")
+        self.hl_sampler = kwargs.pop("hl_sampler")
+        self.hl_timesteps = kwargs.pop("hl_timesteps")
 
-        self.init_timesteps = init_timesteps
-        self.timesteps = timesteps
-        self.hl_timesteps = hl_timesteps
-        self.eval_interval = int(timesteps / log_interval)
+        # BaseTrainer expects a `policy`; HRL's primary policy is the high-level one.
+        kwargs.setdefault("policy", self.hl_policy)
 
-        self.best_return_mean = -float("inf")
-        self.recent_returns = deque(maxlen=5)
+        super().__init__(**kwargs)
+
+        self.num_vectors = len(self.policies) - 1
 
     def train(self):
         start_time = time.time()
@@ -135,7 +109,7 @@ class HRLTrainer(BaseTrainer):
             state, _ = self.env.reset(seed=eval_seed)
             ep_reward = []
 
-            for _ in range(self.env.max_steps):
+            for _ in range(self.hl_sampler.episode_len):
                 with torch.no_grad():
                     [option_idx, a], meta = self.hl_policy(
                         state, None, deterministic=True

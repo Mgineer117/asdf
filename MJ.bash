@@ -10,7 +10,7 @@ mkdir -p log
 GPU=${GPU:-0}
 PROJECT="baselines"
 ALGO="hrl"
-ENVS=(amidar pacman)
+ENVS=(amidar pacman fourrooms-v2)
 
 for env in "${ENVS[@]}"; do
     tag="${PROJECT}_${env}_${ALGO}"
@@ -25,5 +25,5 @@ for env in "${ENVS[@]}"; do
 done
 
 disown -a
-echo "Launched 2 hrl jobs (amidar, pacman) on GPU ${GPU}. PIDs:"
+echo "Launched 3 hrl jobs (amidar, pacman, fourrooms-v2) on GPU ${GPU}. PIDs:"
 jobs -p
