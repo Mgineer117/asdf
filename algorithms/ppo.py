@@ -1,10 +1,10 @@
-import torch
 import torch.nn as nn
 
-from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from policy.ppo import PPO_Learner
+from policy.ppo_allo import PPO_ALLO_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
-from utils.functions import build_activation
+from utils.functions import build_actor_critic_pair
+from utils.intrinsic_rewards import ALLOIntRewardFunctionG
 from utils.sampler import OnlineSampler
 
 
@@ -21,6 +21,22 @@ class PPO_Algorithm(nn.Module):
         self.args.nupdates = args.timesteps // (
             args.minibatch_size * args.num_minibatch
         )
+
+        self.use_allo = getattr(args, "int_reward_type", None) == "allo"
+        if self.use_allo:
+            if not getattr(args, "is_goal_conditioned", False):
+                raise ValueError(
+                    "PPO with --int-reward-type allo requires a goal-conditioned "
+                    "environment (uses ALLOIntRewardFunctionG)."
+                )
+            self.intrinsic_reward_fn = ALLOIntRewardFunctionG(
+                logger=logger,
+                writer=writer,
+                args=args,
+                mode=getattr(args, "kernel_mode", "rbf"),
+            )
+        else:
+            self.intrinsic_reward_fn = None
 
     def begin_training(self):
         # === Define policy === #
@@ -52,23 +68,9 @@ class PPO_Algorithm(nn.Module):
         return trainer.best_success_mean
 
     def define_policy(self):
-        activation = build_activation(getattr(self.args, "actor_activation", None))
-        actor = PPO_Actor(
-            input_dim=self.args.state_dim,
-            hidden_dim=self.args.actor_fc_dim,
-            action_dim=self.args.action_dim,
-            is_discrete=self.args.is_discrete,
-            activation=activation,
-            device=self.args.device,
-        )
-        critic = PPO_Critic(
-            self.args.state_dim,
-            hidden_dim=self.args.critic_fc_dim,
-            activation=activation,
-            device=self.args.device,
-        )
+        actor, critic = build_actor_critic_pair(self.args)
 
-        self.policy = PPO_Learner(
+        ppo_kwargs = dict(
             actor=actor,
             critic=critic,
             is_discrete=self.args.is_discrete,
@@ -84,6 +86,16 @@ class PPO_Algorithm(nn.Module):
             K=self.args.K_epochs,
             device=self.args.device,
         )
+
+        if self.use_allo:
+            self.policy = PPO_ALLO_Learner(
+                intrinsic_reward_fn=self.intrinsic_reward_fn,
+                alpha=getattr(self.args, "int_reward_alpha", 1.0),
+                alpha_final=getattr(self.args, "int_reward_alpha_final", 0.0),
+                **ppo_kwargs,
+            )
+        else:
+            self.policy = PPO_Learner(**ppo_kwargs)
 
         if hasattr(self.env, "get_grid"):
             self.policy.grid = self.env.get_grid()

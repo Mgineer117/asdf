@@ -129,7 +129,7 @@ def get_args():
     parser.add_argument(
         "--actor-activation",
         type=str,
-        default="tanh",
+        default="relu",
         help="Activation function shared by actor and critic networks (relu or tanh).",
     )
     parser.add_argument(
@@ -154,7 +154,7 @@ def get_args():
     parser.add_argument(
         "--actor-fc-dim",
         type=int,
-        default=[128, 128],  # [256, 128, 64],
+        default=[256, 128, 64],
         nargs="+",
         help="List of integers defining the number of neurons in each fully-connected layer of the Actor network.",
     )
@@ -225,6 +225,18 @@ def get_args():
         "--find-lr",
         action="store_true",
         help="Whether to find the optimal learning rate for the intrinsic reward signal.",
+    )
+    parser.add_argument(
+        "--int-reward-alpha",
+        type=float,
+        default=1.0,
+        help="Initial scale on the intrinsic reward when augmenting extrinsic reward (PPO+ALLO).",
+    )
+    parser.add_argument(
+        "--int-reward-alpha-final",
+        type=float,
+        default=0.0,
+        help="Final scale on the intrinsic reward; alpha linearly anneals to this value across training (PPO+ALLO).",
     )
 
     # === ALLO (FEATURE EXTRACTOR) PARAMETERS === #
@@ -325,6 +337,25 @@ def get_args():
         type=float,
         default=None,
         help="The maximum allowed KL divergence between the old and new policy. Used for early stopping in PPO or constraint in TRPO.",
+    )
+    parser.add_argument(
+        "--num-hindsight-goals",
+        type=int,
+        default=None,
+        help="HTRPO: number of relabeled hindsight goals to generate per rollout batch.",
+    )
+    parser.add_argument(
+        "--use-hgf",
+        dest="use_hgf",
+        action="store_true",
+        default=None,
+        help="HTRPO: use hindsight goal filtering instead of uniform achieved-goal sampling.",
+    )
+    parser.add_argument(
+        "--no-use-hgf",
+        dest="use_hgf",
+        action="store_false",
+        help="HTRPO: disable hindsight goal filtering and sample hindsight goals uniformly.",
     )
     parser.add_argument(
         "--gae",

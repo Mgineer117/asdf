@@ -210,6 +210,11 @@ class DRND_Learner(Base):
         target_kl = []
         grad_dicts = []
 
+        # Defensive init so the post-inner-loop check is safe even if
+        # num_minibatch ends up 0 in some configuration.
+        kl_div = torch.tensor(float("inf"), device=self.device)
+        k = 0
+
         for k in range(self.K):
             for n in range(self.num_minibatch):
                 indices = torch.randperm(batch_size)[: self.minibatch_size]
@@ -239,7 +244,12 @@ class DRND_Learner(Base):
                 # 3. DRND Loss
                 drnd_loss = self.drnd_loss(next_states=mb_next_states)
 
-                # Track actor loss for logging
+                # Total loss
+                loss = actor_loss - entropy_loss + 0.5 * value_loss + drnd_loss
+
+                # Track for logging (do this BEFORE the KL early-stop break so
+                # `np.mean(losses)` never sees an empty list).
+                losses.append(loss.item())
                 actor_losses.append(actor_loss.item())
                 entropy_losses.append(entropy_loss.item())
                 clip_fractions.append(clip_fraction)
@@ -248,10 +258,6 @@ class DRND_Learner(Base):
 
                 if kl_div.item() > self.target_kl:
                     break
-
-                # Total loss
-                loss = actor_loss - entropy_loss + 0.5 * value_loss + drnd_loss
-                losses.append(loss.item())
 
                 # Update critic parameters
                 self.optimizer.zero_grad()

@@ -76,6 +76,33 @@ class PPO_Learner(Base):
             "dist": metaData["dist"],
         }
 
+    def _on_batch_collected(self, states):
+        """Hook called once per `learn()` immediately after the batch is on
+        device, before reward/advantage computation. Default is a no-op.
+        Subclasses override to update obs-RMS, record visitations, etc.
+        """
+        pass
+
+    def _compute_rewards(self, batch, **kwargs):
+        """Hook returning (rewards_tensor[T,1], extra_log_dict).
+
+        Default behavior: pass-through extrinsic reward, with HRL option
+        pretraining as a special case (replaces reward by an intrinsic slice).
+        Subclasses (e.g. PPO_ALLO_Learner) override this to add reward shaping.
+        """
+        rewards = self.preprocess_state(batch["rewards"])
+
+        int_reward_fn = kwargs.get("intrinsic_reward_fn")
+        option_idx = kwargs.get("option_idx")
+        if int_reward_fn is not None and option_idx is not None:
+            states = self.preprocess_state(batch["states"])
+            next_states = self.preprocess_state(batch["next_states"])
+            rewards = int_reward_fn(states, next_states)[
+                :, option_idx : option_idx + 1
+            ]
+
+        return rewards, {}
+
     def learn(self, env, sampler, seed, **kwargs):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
@@ -88,20 +115,14 @@ class PPO_Learner(Base):
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
         actions = self.preprocess_state(batch["actions"])
-        rewards = self.preprocess_state(batch["rewards"])
         terminations = self.preprocess_state(batch["terminations"])
         truncations = self.preprocess_state(batch["truncations"])
         old_logprobs = self.preprocess_state(batch["logprobs"])
 
-        # FOR HRL option pretraining
-        int_reward_fn = kwargs.get("intrinsic_reward_fn")
-        option_idx = kwargs.get("option_idx")
+        self._on_batch_collected(states)
 
-        if int_reward_fn is not None and option_idx is not None:
-            next_states = self.preprocess_state(batch["next_states"])
-            rewards = int_reward_fn(states, next_states)[:, option_idx : option_idx + 1]
+        rewards, reward_log = self._compute_rewards(batch, **kwargs)
 
-        # self.record_state_visitations(states)
         timesteps = states.shape[0]
 
         # Compute advantages and returns
@@ -129,6 +150,11 @@ class PPO_Learner(Base):
         target_kl = []
         grad_dicts = []
 
+        # Defensive init so the post-inner-loop check is safe even if
+        # num_minibatch ends up 0 in some configuration.
+        kl_div = torch.tensor(float("inf"), device=self.device)
+        k = 0
+
         for k in range(self.K):
             for n in range(self.num_minibatch):
                 indices = torch.randperm(batch_size)[: self.minibatch_size]
@@ -143,15 +169,19 @@ class PPO_Learner(Base):
 
                 # 1. Critic Loss (with optional regularization)
                 value_loss = self.critic_loss(mb_states, mb_returns)
-                # Track value loss for logging
-                value_losses.append(value_loss.item())
 
                 # 2. actor Loss
                 actor_loss, entropy_loss, clip_fraction, kl_div = self.actor_loss(
                     mb_states, mb_actions, mb_old_logprobs, mb_advantages
                 )
 
-                # Track actor loss for logging
+                # Total loss
+                loss = actor_loss - entropy_loss + 0.5 * value_loss
+
+                # Track for logging (do this BEFORE the KL early-stop break so
+                # `np.mean(losses)` never sees an empty list).
+                losses.append(loss.item())
+                value_losses.append(value_loss.item())
                 actor_losses.append(actor_loss.item())
                 entropy_losses.append(entropy_loss.item())
                 clip_fractions.append(clip_fraction)
@@ -159,10 +189,6 @@ class PPO_Learner(Base):
 
                 if kl_div.item() > self.target_kl:
                     break
-
-                # Total loss
-                loss = actor_loss - entropy_loss + 0.5 * value_loss
-                losses.append(loss.item())
 
                 # Update critic parameters
                 self.optimizer.zero_grad()
@@ -208,12 +234,27 @@ class PPO_Learner(Base):
         )
         loss_dict.update(grad_dict)
         loss_dict.update(norm_dict)
+        loss_dict.update(reward_log)
+
+        extra_loss, image_dict = self._post_update_hook(batch, **kwargs)
+        loss_dict.update(extra_loss)
 
         # Cleanup
-        del states, actions, rewards, terminations, old_logprobs
+        del states, actions, rewards, terminations, truncations, old_logprobs
         self.eval()
 
-        return {"loss_dict": loss_dict, "timesteps": timesteps}
+        result = {"loss_dict": loss_dict, "timesteps": timesteps}
+        if image_dict:
+            result["image_dict"] = image_dict
+        return result
+
+    def _post_update_hook(self, batch, **kwargs):
+        """Hook returning (extra_loss_dict, image_dict) after the PPO update.
+
+        Default is a no-op. Subclasses (e.g. PPO_ALLO_Learner) override this
+        to add diagnostics such as per-goal gradient conflict analysis.
+        """
+        return {}, {}
 
     def actor_loss(
         self,

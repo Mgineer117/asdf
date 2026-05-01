@@ -21,6 +21,7 @@ ACHIEVED_GOAL_IDX = {
     "fourrooms": [0, 1],
     "antmaze": [-4, -3],
     "pointmaze": [-4, -3],
+    "pointmazeG": [-4, -3],
     "fetchreach": [-6, -5, -4],
     "fetchpush": [-6, -5, -4],
 }
@@ -29,6 +30,7 @@ DESIRED_GOAL_IDX = {
     "fourrooms": [2, 3],
     "antmaze": [-2, -1],
     "pointmaze": [-2, -1],
+    "pointmazeG": [-2, -1],
     "fetchreach": [-3, -2, -1],
     "fetchpush": [-3, -2, -1],
 }
@@ -38,6 +40,7 @@ DIST_THRESHOLD = {
     "fourrooms": 0.001,
     "antmaze": 0.45,
     "pointmaze": 0.45,
+    "pointmazeG": 0.45,
     "fetchreach": 0.1,
     "fetchpush": 0.1,
 }
@@ -62,7 +65,7 @@ class HTRPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.9,
         device: str = "cpu",
-        num_hindsight_goals: int = 100,
+        num_hindsight_goals: int = 20,
         use_hgf: bool = True,
     ):
         super().__init__(device=device)
@@ -81,8 +84,7 @@ class HTRPO_Learner(Base):
         self.backtrack_coeff = backtrack_coeff
         self.nupdates = nupdates
 
-        # self.target_kl = target_kl
-        self.target_kl = 0.00001
+        self.target_kl = target_kl
 
         self.num_hindsight_goals = num_hindsight_goals
         self.use_hgf = use_hgf
@@ -133,17 +135,23 @@ class HTRPO_Learner(Base):
         else:
             g0_idx = np.random.choice(len(G_v))
             selected_goals.append(G_v[g0_idx])
-            remaining_G_v = np.delete(G_v, g0_idx, axis=0)
 
-            for _ in range(min(num_goals - 1, len(remaining_G_v))):
-                d2s = np.linalg.norm(
-                    remaining_G_v[:, None, :] - np.array(selected_goals)[None, :, :],
-                    axis=2,
-                )
-                min_d2s = np.min(d2s, axis=1)
-                best_idx = np.argmax(min_d2s)
-                selected_goals.append(remaining_G_v[best_idx])
-                remaining_G_v = np.delete(remaining_G_v, best_idx, axis=0)
+            # Incremental farthest-point update: keep the running minimum
+            # distance from each remaining candidate to the selected set.
+            alive = np.ones(len(G_v), dtype=bool)
+            alive[g0_idx] = False
+            min_d2s = np.linalg.norm(G_v - G_v[g0_idx], axis=1)
+            min_d2s[g0_idx] = -np.inf
+
+            for _ in range(min(num_goals - 1, int(alive.sum()))):
+                best_idx = int(np.argmax(min_d2s))
+                selected_goals.append(G_v[best_idx])
+                alive[best_idx] = False
+                if not alive.any():
+                    break
+                d_to_new = np.linalg.norm(G_v - G_v[best_idx], axis=1)
+                min_d2s = np.minimum(min_d2s, d_to_new)
+                min_d2s[~alive] = -np.inf
 
             while len(selected_goals) < num_goals:
                 selected_goals.append(
@@ -202,6 +210,7 @@ class HTRPO_Learner(Base):
         for g_idx, g_prime in enumerate(G):
             hs_batch = {k: np.copy(v) for k, v in batch.items()}
             hs_batch["states"][:, self.desired_goal_idx] = g_prime
+            hs_batch["next_states"][:, self.desired_goal_idx] = g_prime
 
             current_achieved = hs_batch["states"][:, self.achieved_goal_idx]
             dists = np.linalg.norm(current_achieved - g_prime, axis=1)
@@ -309,111 +318,111 @@ class HTRPO_Learner(Base):
             indices = gid_mask.nonzero(as_tuple=True)[0]  # ordered global positions
 
             # ── 2. Split into episodes using done flags ────────────────────────
-            #    Works for variable-length episodes: the window between two
-            #    consecutive done=1 flags is one episode.  A trailing window
-            #    that never received done=1 is kept as a truncated episode.
-            episodes: list[torch.Tensor] = []
-            ep_start = 0
-            for local_i in range(len(indices)):
-                if dones[indices[local_i]]:
-                    episodes.append(indices[ep_start : local_i + 1])
-                    ep_start = local_i + 1
-            if ep_start < len(indices):  # truncated final episode
-                episodes.append(indices[ep_start:])
+            gid_dones = dones[indices].flatten()
+            ep_ends = gid_dones.nonzero(as_tuple=True)[0] + 1
+            if len(ep_ends) == 0 or ep_ends[-1] != len(indices):
+                ep_ends = torch.cat(
+                    [
+                        ep_ends,
+                        torch.tensor([len(indices)], dtype=torch.long, device=device),
+                    ]
+                )
+
+            ep_lengths = ep_ends.clone()
+            ep_lengths[1:] = ep_ends[1:] - ep_ends[:-1]
 
             # ── 3. Discount factors: γ^t, t = step index within episode ───────
-            #    Computed per goal group so that envs where hindsight relabelling
-            #    changes episode length (non-fetch) still get the right γ^t.
-            for ep_idx in episodes:
-                ep_len = len(ep_idx)
-                t_vals = torch.arange(ep_len, dtype=dtype, device=device)
-                discount_factors[ep_idx] = self.gamma**t_vals
+            max_len = int(ep_lengths.max().item())
+            seq_range = (
+                torch.arange(max_len, dtype=dtype, device=device)
+                .unsqueeze(0)
+                .expand(len(ep_lengths), max_len)
+            )
+            mask = seq_range < ep_lengths.unsqueeze(1)
+            discount_factors[indices] = (self.gamma ** seq_range[mask]).to(dtype)
 
             # ── 4. Original data: leave IS weight = 1 ─────────────────────────
             if gid == 0:
                 continue
 
-            # ── 5. Cumulative IS ratios per episode ───────────────────────────
-            #    ep_cum_ratios[i][t] = ∏_{k=0}^{t} step_is_ratios  for episode i
-            ep_cum_ratios: list[torch.Tensor] = [
-                torch.cumprod(step_is_ratios[ep_idx], dim=0) for ep_idx in episodes
-            ]
+            # ── 5. Vectorized cumulative IS ratios per episode ────────────────
+            gid_step_ratios = step_is_ratios[indices].flatten()
+            ep_step_ratios = torch.split(gid_step_ratios, ep_lengths.tolist())
+            padded_step_ratios = torch.nn.utils.rnn.pad_sequence(
+                ep_step_ratios, batch_first=True, padding_value=1.0
+            )
+            padded_cum_ratios = torch.cumprod(padded_step_ratios, dim=1)
 
-            # ── 6. WIS normalisation: divide by sum across episodes at each t ─
-            #    Only episodes that reach position t contribute to the denominator,
-            #    which correctly handles variable-length episodes without padding.
-            max_ep_len = max(len(ep) for ep in episodes)
-            for t in range(max_ep_len):
-                # Indices into `episodes` / `ep_cum_ratios` that reach position t
-                valid = [i for i, ep in enumerate(episodes) if len(ep) > t]
-                if not valid:
-                    continue
-
-                # Σ_τ ∏_{k=0}^{t} π_θ̃(aₖ|sₖ,g') / π_θ̃(aₖ|sₖ,g)
-                ratio_sum = sum(ep_cum_ratios[i][t] for i in valid)
-                num_valid = len(valid)
-
-                for i in valid:
-                    cum_is_ratios[episodes[i][t]] = (
-                        num_valid * ep_cum_ratios[i][t]
-                    ) / (ratio_sum + 1e-8)
+            # ── 6. WIS normalisation across episodes at each timestep ─────────
+            valid_cum_ratios = padded_cum_ratios * mask.to(dtype)
+            ratio_sums = valid_cum_ratios.sum(dim=0, keepdim=True)
+            num_valid = mask.sum(dim=0, keepdim=True).to(dtype)
+            padded_wis = (num_valid * padded_cum_ratios) / (ratio_sums + 1e-8)
+            cum_is_ratios[indices] = padded_wis[mask]
 
         return cum_is_ratios.unsqueeze(-1), discount_factors.unsqueeze(-1)
 
     def learn(self, env, sampler, seed, **kwargs):
         self.train()
 
+        t_total_start = time.perf_counter()
         batch, sample_time = sampler.collect_samples(env, self.actor, seed)
-        t0 = time.time()
+        t_update_start = time.perf_counter()
         old_rewards = batch["rewards"]
         timesteps = old_rewards.shape[0]
 
+        t_stage = time.perf_counter()
         hs_batch = self._create_hindsight_batch(batch)
+        hindsight_batch_time = time.perf_counter() - t_stage
 
         # Remove WIS metadata before tensor conversion — preprocess_state must
         # never see integer goal-group indices.
         hs_goal_ids_np: np.ndarray = hs_batch.pop("hs_goal_ids")
 
+        t_stage = time.perf_counter()
         states = self.preprocess_state(hs_batch["states"])
         self.update_obs_rms(states)
         self.sync_obs_rms_to(self.actor, self.critic)
+        next_states = self.preprocess_state(hs_batch["next_states"])
         actions = self.preprocess_state(hs_batch["actions"])
         rewards = self.preprocess_state(hs_batch["rewards"])
         terminations = self.preprocess_state(hs_batch["terminations"])
         truncations = self.preprocess_state(hs_batch["truncations"])
         dones = torch.logical_or(terminations.bool(), truncations.bool())
         original_logprobs = self.preprocess_state(hs_batch["logprobs"])
+        preprocess_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         goal_ids = torch.from_numpy(hs_goal_ids_np).to(self.device)
+        goal_id_tensor_time = time.perf_counter() - t_stage
 
         # log π_θ̃(a | s, g')
         # For goal_id == 0 (original data), the goal embedded in `states` is the
         # original goal g, so relabeled_logprobs == original_logprobs and
         # step_is_ratios == 1 for those samples — no correction applied.
+        t_stage = time.perf_counter()
         with torch.no_grad():
             _, old_metaData = self.actor(states)
             relabeled_logprobs = self.actor.log_prob(old_metaData["dist"], actions)
+        relabeled_logprob_time = time.perf_counter() - t_stage
 
         # per-step IS ratio: π_θ̃(a|s,g') / π_θ̃(a|s,g)
         step_is_ratios = torch.exp(relabeled_logprobs - original_logprobs)
 
         # Cross-episode WIS-normalised cumulative IS ratios and γ^t discounts.
+        t_stage = time.perf_counter()
         cum_is_ratios, discount_factors = self._compute_wis_and_discounts(
             step_is_ratios, dones, goal_ids
         )
+        wis_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         with torch.no_grad():
             values = self.critic(states)
+            next_values = self.critic(next_states)
 
-            # Compute V(s') by shifting the values array
-            next_values = torch.zeros_like(values)
-            next_values[:-1] = values[1:]
-
-            # The return is the TD target
-            boundary_mask = goal_ids[:-1] != goal_ids[1:]
-            next_values[:-1][boundary_mask] = 0.0
-
-            # Mask out next values only for true terminations (truncations should bootstrap)
+            # Bootstrap from the actual transition next_state; only true
+            # terminations should zero out the bootstrap target.
             next_values[terminations.bool()] = 0.0
 
             # One-step TD Advantage: r + gamma * V(s') - V(s)
@@ -421,9 +430,13 @@ class HTRPO_Learner(Base):
 
             # The return is the TD target
             returns = rewards + self.gamma * next_values
+        value_target_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        advantage_norm_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         actor_gradients, actor_loss = self.actor_loss(
             states,
             actions,
@@ -432,9 +445,12 @@ class HTRPO_Learner(Base):
             cum_is_ratios,
             discount_factors,
         )
+        actor_grad_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         old_actor = deepcopy(self.actor)
         grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
+        actor_snapshot_time = time.perf_counter() - t_stage
 
         def kl_fn():
             _, metaData = self.actor(states)
@@ -444,15 +460,22 @@ class HTRPO_Learner(Base):
             return (discount_factors * cum_is_ratios * kl_approx).mean()
 
         Hv = lambda v: hessian_vector_product(kl_fn, self.actor, self.damping, v)
+        t_stage = time.perf_counter()
         step_dir = conjugate_gradients(Hv, grad_flat, nsteps=10)
+        conjugate_gradient_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
         lm = torch.sqrt(sAs / self.target_kl)
         full_step = step_dir / (lm + 1e-8)
+        step_scaling_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         with torch.no_grad():
             old_params = flat_params(old_actor)
             success = False
+            i = -1
+            kl = torch.tensor(float("nan"), device=states.device)
             for i in range(self.backtrack_iters):
                 alpha = self.backtrack_coeff**i
                 # Subtracting the step because we are minimizing the negative objective
@@ -475,7 +498,9 @@ class HTRPO_Learner(Base):
             if not success:
                 set_flat_params(self.actor, old_params)
                 kl = kl_fn()
+        line_search_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         critic_iteration = 20
         batch_size_critic = states.size(0) // critic_iteration
         grad_dict_list = []
@@ -494,18 +519,60 @@ class HTRPO_Learner(Base):
             )
             grad_dict_list.append(grad_dict)
             self.optimizer.step()
+        critic_update_time = time.perf_counter() - t_stage
 
+        t_stage = time.perf_counter()
         grad_dict = self.average_dict_values(grad_dict_list)
+        grad_reduce_time = time.perf_counter() - t_stage
+
+        update_time = time.perf_counter() - t_update_start
+        total_time = time.perf_counter() - t_total_start
+        update_denom = max(update_time, 1e-8)
+        total_denom = max(total_time, 1e-8)
+        fake_goal_generation_time = hindsight_batch_time
+        sample_rework_time = (
+            preprocess_time
+            + goal_id_tensor_time
+            + relabeled_logprob_time
+            + wis_time
+        )
+        actor_update_time = (
+            actor_grad_time
+            + actor_snapshot_time
+            + conjugate_gradient_time
+            + step_scaling_time
+            + line_search_time
+        )
+        critic_update_total_time = critic_update_time + grad_reduce_time
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss.item(),
             f"{self.name}/loss/value_loss": value_loss.item(),
             f"{self.name}/analytics/backtrack_success": int(success),
+            f"{self.name}/analytics/backtrack_iter": i,
             f"{self.name}/analytics/klDivergence": kl.item(),
             f"{self.name}/analytics/avg_rewards": torch.mean(rewards).item(),
             f"{self.name}/analytics/avg_old_rewards": np.mean(old_rewards).item(),
-            f"{self.name}/analytics/update_time": time.time() - t0,
+            f"{self.name}/analytics/hindsight_batch_size": states.shape[0],
+            f"{self.name}/analytics/update_time": update_time,
             f"{self.name}/analytics/sample_time": sample_time,
+            f"{self.name}/time_profile/total_sec": total_time,
+            f"{self.name}/time_profile/sample_pct": sample_time / total_denom,
+            f"{self.name}/time_profile/update_pct": update_time / total_denom,
+            f"{self.name}/time_profile/fake_goal_generation_sec": fake_goal_generation_time,
+            f"{self.name}/time_profile/sample_rework_sec": sample_rework_time,
+            f"{self.name}/time_profile/value_target_sec": value_target_time,
+            f"{self.name}/time_profile/actor_update_sec": actor_update_time,
+            f"{self.name}/time_profile/critic_update_sec": critic_update_total_time,
+            f"{self.name}/time_profile/fake_goal_generation_pct": fake_goal_generation_time
+            / update_denom,
+            f"{self.name}/time_profile/sample_rework_pct": sample_rework_time
+            / update_denom,
+            f"{self.name}/time_profile/value_target_pct": value_target_time / update_denom,
+            f"{self.name}/time_profile/actor_update_pct": actor_update_time
+            / update_denom,
+            f"{self.name}/time_profile/critic_update_pct": critic_update_total_time
+            / update_denom,
         }
 
         self.eval()

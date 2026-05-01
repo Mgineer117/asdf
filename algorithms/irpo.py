@@ -4,9 +4,8 @@ from policy.irpo import IRPO_G_Learner, IRPO_Learner
 from policy.irpo_is import IRPO_IS_Learner
 from policy.irpo_thompson import IRPO_Thompson_Learner
 from policy.irpo_trpo_final import IRPO_TRPOFinal_Learner
-from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
-from utils.functions import build_activation
+from utils.functions import build_actor_critic_pair
 from utils.intrinsic_rewards import (
     ALLOIntRewardFunctions,
     ALLOIntRewardFunctionG,
@@ -94,21 +93,7 @@ class IRPO_Algorithm(nn.Module):
 
     def define_base_policy(self):
         # === Define policy === #
-        activation = build_activation(getattr(self.args, "actor_activation", None))
-        actor = PPO_Actor(
-            input_dim=self.args.state_dim,
-            hidden_dim=self.args.actor_fc_dim,
-            action_dim=self.args.action_dim,
-            is_discrete=self.args.is_discrete,
-            activation=activation,
-            device=self.args.device,
-        )
-        critic = PPO_Critic(
-            self.args.state_dim,
-            hidden_dim=self.args.critic_fc_dim,
-            activation=activation,
-            device=self.args.device,
-        )
+        actor, critic = build_actor_critic_pair(self.args)
 
         shared_kwargs = dict(
             actor=actor,

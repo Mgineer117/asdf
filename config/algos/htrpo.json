@@ -1,4 +1,6 @@
 {
     "learning_rate": 1e-3,
-    "target_kl": 0.0001
+    "target_kl": 0.0001,
+    "num_hindsight_goals": 20,
+    "use_hgf": true
 }

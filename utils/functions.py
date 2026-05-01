@@ -24,6 +24,38 @@ def build_activation(activation_name):
     )
 
 
+def build_actor_critic_pair(args, action_dim=None, is_discrete=None, activation=None):
+    """
+    Build a (PPO_Actor, PPO_Critic) pair from `args`.
+
+    Centralises the boilerplate that every algorithm in `algorithms/`
+    repeats. `action_dim` and `is_discrete` may be overridden (e.g. for
+    HRL's discrete-option high-level actor); both default to `args`.
+    """
+    # Local import to avoid pulling torch-heavy modules at package-import
+    # time (this helper is loaded by main.py via utils.functions).
+    from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+
+    if activation is None:
+        activation = build_activation(getattr(args, "actor_activation", None))
+
+    actor = PPO_Actor(
+        input_dim=args.state_dim,
+        hidden_dim=args.actor_fc_dim,
+        action_dim=args.action_dim if action_dim is None else action_dim,
+        is_discrete=args.is_discrete if is_discrete is None else is_discrete,
+        activation=activation,
+        device=args.device,
+    )
+    critic = PPO_Critic(
+        args.state_dim,
+        hidden_dim=args.critic_fc_dim,
+        activation=activation,
+        device=args.device,
+    )
+    return actor, critic
+
+
 def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
     """
     setup logger both using WandB and Tensorboard
