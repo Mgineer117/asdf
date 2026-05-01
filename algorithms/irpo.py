@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from policy.irpo import IRPO_G_Learner, IRPO_Learner
+from policy.irpo import NUM_GOALS, IRPO_G_Learner, IRPO_Learner
 from policy.irpo_is import IRPO_IS_Learner
 from policy.irpo_thompson import IRPO_Thompson_Learner
 from policy.irpo_trpo_final import IRPO_TRPOFinal_Learner
@@ -128,7 +128,14 @@ class IRPO_Algorithm(nn.Module):
             anneal_kl=self.args.anneal_kl,
         )
 
-        if self.goal_conditioned:
+        # IRPO_G_Learner is built for maze-family envs with a *discrete* goal
+        # set (clustered via NUM_GOALS); continuous-goal envs like FetchReach
+        # are goal-conditioned but don't fit that mould, so they fall through
+        # to the standard IRPO_Learner path with a single intrinsic reward.
+        use_g_learner = (
+            self.goal_conditioned and self.args.env_name in NUM_GOALS
+        )
+        if use_g_learner:
             self.policy = IRPO_G_Learner(env_name=self.args.env_name, **shared_kwargs)
         else:
             irpo_type = getattr(self.args, "irpo_type", "irpo")

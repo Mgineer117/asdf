@@ -88,6 +88,7 @@ if __name__ == "__main__":
 
     # random.seed(init_args.seed)
     seed_pool = [1825, 410, 4507, 4013, 3658, 2287, 1680, 8936, 1425, 9675]
+    # [410,4507,]
     if init_args.num_runs > len(seed_pool):
         seeds = seed_pool
         print(
