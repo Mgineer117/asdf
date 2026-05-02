@@ -3,11 +3,11 @@
 
 mkdir -p log
 
-nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 0 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed0.out 2>&1 &
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 0 --gpu-idx 2 > log/NEW_IRPO_pacman_hrl_seed0.out 2>&1 &
 sleep 3
-nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 1 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed1.out 2>&1 &
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 1 --gpu-idx 2 > log/NEW_IRPO_pacman_hrl_seed1.out 2>&1 &
 sleep 3
-nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 2 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed2.out 2>&1 &
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 2 --gpu-idx 2 > log/NEW_IRPO_pacman_hrl_seed2.out 2>&1 &
 sleep 3
 # nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 3 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed3.out 2>&1 &
 # sleep 3
