@@ -15,13 +15,13 @@ nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo 
 sleep 3
 nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 5 --gpu-idx 0 > log/NEW_IRPO_fetchreach_irpo_seed5.out 2>&1 &
 sleep 3
-nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 6 --gpu-idx 0 > log
+nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 6 --gpu-idx 0 > log/NEW_IRPO_fetchreach_irpo_seed5.out 2>&1 &
 sleep 3
-nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 7 --gpu-idx 0 > log
+nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 7 --gpu-idx 0 > log/NEW_IRPO_fetchreach_irpo_seed5.out 2>&1 &
 sleep 3
-nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 8 --gpu-idx 0 > log
+nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 8 --gpu-idx 0 > log/NEW_IRPO_fetchreach_irpo_seed5.out 2>&1 &
 sleep 3
-nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 9 --gpu-idx 0 > log
+nohup python3 main.py --project NEW_IRPO --env-name fetchreach --algo-name irpo --int-reward-type random --seed 9 --gpu-idx 0 > log/NEW_IRPO_fetchreach_irpo_seed5.out 2>&1 &
 sleep 3
 
 
