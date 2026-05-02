@@ -1,42 +1,28 @@
 #!/usr/bin/env bash
-# A4000 — NEW_IRPO pacman experiments across 4 GPUs.
-# Each algorithm gets its own GPU and fans out 5 seeds concurrently on it.
-#   GPU 0 → ppo
-#   GPU 1 → drnd
-#   GPU 2 → trpo
-#   GPU 3 → psne
-# 4 algos × 5 seeds = 20 processes, 5 per GPU concurrent.
-#
-# Children are nohup'd + disowned so the terminal returns immediately and
-# jobs survive logout. Monitor with: tail -f log/NEW_IRPO_*.out
+# Europa — NEW_IRPO pacman: hrl on GPU 0, maml on GPU 1, 5 seeds each.
 
-set -u
 mkdir -p log
-PROJECT="NEW_IRPO"
-ENV="pacman"
-SEEDS=(0 1 2 3 4)
 
-# (gpu, algo)
-ALLOCATIONS=(
-    "0|hrl"
-    "1|maml"
-)
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 0 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed0.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 1 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed1.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 2 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed2.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 3 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed3.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name hrl --seed 4 --gpu-idx 0 > log/NEW_IRPO_pacman_hrl_seed4.out 2>&1 &
+sleep 3
 
-for alloc in "${ALLOCATIONS[@]}"; do
-    IFS='|' read -r gpu algo <<< "${alloc}"
-    for seed in "${SEEDS[@]}"; do
-        tag="${PROJECT}_${ENV}_${algo}_seed${seed}"
-        nohup python3 main.py \
-            --project "${PROJECT}" \
-            --env-name "${ENV}" \
-            --algo-name "${algo}" \
-            --seed "${seed}" \
-            --gpu-idx "${gpu}" \
-            > "log/${tag}.out" 2>&1 &
-        sleep 3
-    done
-done
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name maml --seed 0 --gpu-idx 1 > log/NEW_IRPO_pacman_maml_seed0.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name maml --seed 1 --gpu-idx 1 > log/NEW_IRPO_pacman_maml_seed1.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name maml --seed 2 --gpu-idx 1 > log/NEW_IRPO_pacman_maml_seed2.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name maml --seed 3 --gpu-idx 1 > log/NEW_IRPO_pacman_maml_seed3.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name maml --seed 4 --gpu-idx 1 > log/NEW_IRPO_pacman_maml_seed4.out 2>&1 &
 
 disown -a
-echo "Launched 10 NEW_IRPO jobs (2 algos × 5 seeds) across 2 GPUs. PIDs:"
-jobs -p
+echo "Launched 10 NEW_IRPO jobs."
