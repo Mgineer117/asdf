@@ -1,84 +1,42 @@
 #!/usr/bin/env bash
-# A4000 — IRPO ablations + baselines on fourrooms-v2 across 4 GPUs.
-#   Aggregation method ∈ {uniform, argmax, softmax}     → 3 IRPO jobs
-#   Temperature        ∈ {0.2, 0.5, 0.8, 1.0} (softmax) → 4 IRPO jobs
-#   Baselines          ∈ {ppo, trpo, psne, hrl, drnd}   → 5 baseline jobs
-# Total 12 configs × 10 internal runs each, evenly split (3 per GPU).
-#
-# GPU placement:
-#   GPU 0 → agg: uniform,  temp: 0.2,  baseline: ppo
-#   GPU 1 → agg: argmax,   temp: 0.5,  baseline: trpo
-#   GPU 2 → agg: softmax,  temp: 0.8,  baseline: psne
-#   GPU 3 → temp: 1.0,     baseline: hrl, baseline: drnd
+# A4000 — NEW_IRPO pacman experiments across 4 GPUs.
+# Each algorithm gets its own GPU and fans out 5 seeds concurrently on it.
+#   GPU 0 → ppo
+#   GPU 1 → drnd
+#   GPU 2 → trpo
+#   GPU 3 → psne
+# 4 algos × 5 seeds = 20 processes, 5 per GPU concurrent.
 #
 # Children are nohup'd + disowned so the terminal returns immediately and
-# jobs survive logout. Monitor with:
-#   tail -f log/ablation_*_fourrooms-v2_*.out
-#   tail -f log/baselines_fourrooms-v2_*.out
+# jobs survive logout. Monitor with: tail -f log/NEW_IRPO_*.out
 
 set -u
 mkdir -p log
-ENV="fourrooms-v2"
+PROJECT="NEW_IRPO"
+ENV="pacman"
+SEEDS=(0 1 2 3 4)
 
-# (gpu, kind, value)  kind ∈ {agg, temp, base}
-CONFIGS=(
-    "0|agg|uniform"
-    "0|agg|argmax"
-    "0|agg|softmax"
-    "0|temp|0.2"
-    "0|temp|0.5"
-    "1|temp|0.8"
-    "1|temp|1.0"
-    "1|base|ppo"
-    "1|base|trpo"
-    "1|base|psne"
-    "1|base|hrl"
-    "1|base|drnd"
+# (gpu, algo)
+ALLOCATIONS=(
+    "0|hrl"
+    "1|maml"
 )
 
-for cfg in "${CONFIGS[@]}"; do
-    IFS='|' read -r gpu kind val <<< "${cfg}"
-    case "${kind}" in
-        agg)
-            project="ablation_aggregation"
-            tag="${project}_${ENV}_${val}"
-            nohup python3 main.py \
-                --project "${project}" \
-                --env-name "${ENV}" \
-                --algo-name irpo \
-                --aggregation-method "${val}" \
-                --num-runs 10 \
-                --gpu-idx "${gpu}" \
-                > "log/${tag}.out" 2>&1 &
-            ;;
-        temp)
-            project="ablation_temperature"
-            tag="${project}_${ENV}_t${val}"
-            nohup python3 main.py \
-                --project "${project}" \
-                --env-name "${ENV}" \
-                --algo-name irpo \
-                --aggregation-method softmax \
-                --temperature "${val}" \
-                --num-runs 10 \
-                --gpu-idx "${gpu}" \
-                > "log/${tag}.out" 2>&1 &
-            ;;
-        base)
-            project="baselines"
-            tag="${project}_${ENV}_${val}"
-            nohup python3 main.py \
-                --project "${project}" \
-                --env-name "${ENV}" \
-                --algo-name "${val}" \
-                --num-runs 10 \
-                --gpu-idx "${gpu}" \
-                > "log/${tag}.out" 2>&1 &
-            ;;
-    esac
-    sleep 3
+for alloc in "${ALLOCATIONS[@]}"; do
+    IFS='|' read -r gpu algo <<< "${alloc}"
+    for seed in "${SEEDS[@]}"; do
+        tag="${PROJECT}_${ENV}_${algo}_seed${seed}"
+        nohup python3 main.py \
+            --project "${PROJECT}" \
+            --env-name "${ENV}" \
+            --algo-name "${algo}" \
+            --seed "${seed}" \
+            --gpu-idx "${gpu}" \
+            > "log/${tag}.out" 2>&1 &
+        sleep 3
+    done
 done
 
 disown -a
-echo "Launched ${#CONFIGS[@]} fourrooms-v2 configs in background across 4 GPUs. PIDs:"
+echo "Launched 10 NEW_IRPO jobs (2 algos × 5 seeds) across 2 GPUs. PIDs:"
 jobs -p
