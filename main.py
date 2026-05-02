@@ -16,7 +16,12 @@ os.environ["WANDB_SILENT"] = "true"
 
 
 def get_results_csv_path(args, seed):
-    return os.path.join("results", args.env_name, args.algo_name, f"{seed}.csv")
+    algo_dir = args.algo_name
+    if args.algo_name == "irpo":
+        int_reward_type = getattr(args, "int_reward_type", None)
+        if int_reward_type == "random":
+            algo_dir = "irpo_random"
+    return os.path.join("results", args.env_name, algo_dir, f"{seed}.csv")
 
 
 def run(args, seed, unique_id, exp_time, result_csv_path=None, is_sweep=False):

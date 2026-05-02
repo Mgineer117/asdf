@@ -34,10 +34,10 @@ sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name trpo --seed 1 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name trpo --seed 2 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name trpo --seed 3 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name trpo --seed 4 --gpu-idx 0 &
+# sleep 3
+# python3 main.py --project NEW_IRPO --env-name amidar --algo-name trpo --seed 3 --gpu-idx 0 &
+# sleep 3
+# python3 main.py --project NEW_IRPO --env-name amidar --algo-name trpo --seed 4 --gpu-idx 0 &
 
 
 # === Wait for all background jobs to finish ===

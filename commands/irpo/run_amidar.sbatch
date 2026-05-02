@@ -34,20 +34,20 @@ sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --seed 1 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --seed 2 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --seed 3 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --seed 4 --gpu-idx 0 &
+# sleep 3
+# python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --seed 3 --gpu-idx 0 &
+# sleep 3
+# python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --seed 4 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 0 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 1 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 2 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 3 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 4 --gpu-idx 0 &
+# sleep 3
+# python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 3 --gpu-idx 0 &
+# sleep 3
+# python3 main.py --project NEW_IRPO --env-name amidar --algo-name irpo --int-reward-type random --seed 4 --gpu-idx 0 &
 
 # === Wait for all background jobs to finish ===
 wait
