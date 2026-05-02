@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=pacman-irpo
+#SBATCH --job-name=amidar-irpo
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=eng-research-gpu
+#SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:2
-#SBATCH --time=2-00:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --time=3-00:00:00
 #SBATCH --output=slurm_%x_%j.out
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
@@ -49,7 +49,7 @@ for seed in "${SEEDS[@]}"; do
         --algo-name irpo \
         --int-reward-type random \
         --seed "${seed}" \
-        --gpu-idx 1 \
+        --gpu-idx 0 \
         > "log/${tag}.out" 2>&1 &
     sleep 3
 done
