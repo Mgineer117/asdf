@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=2-00:00:00
@@ -38,16 +38,6 @@ sleep 3
 python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 3 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 4 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 5 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 6 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 7 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 8 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --seed 9 --gpu-idx 0 &
 
 
 # === Wait for all background jobs to finish ===

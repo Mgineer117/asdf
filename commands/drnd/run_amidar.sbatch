@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=drnd
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=IllinoisComputes-GPU
+#SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=3-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=drnd.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
@@ -38,16 +38,6 @@ sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 3 --gpu-idx 0 &
 sleep 3
 python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 4 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 5 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 6 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 7 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 8 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name amidar --algo-name drnd --seed 9 --gpu-idx 0 &
 
 
 # === Wait for all background jobs to finish ===
