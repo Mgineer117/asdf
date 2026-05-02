@@ -97,7 +97,7 @@ if __name__ == "__main__":
     else:
         # random.sample(seed_pool, init_args.num_runs)
         if init_args.num_runs == 1:
-            seeds = seed_pool[init_args.seed]
+            seeds = [seed_pool[init_args.seed]]
         else:
             seeds = seed_pool[: init_args.num_runs]
 
