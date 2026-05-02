@@ -95,7 +95,11 @@ if __name__ == "__main__":
             "[Warning] num_runs exceeds the length of seed_pool. Some seeds will be reused."
         )
     else:
-        seeds = random.sample(seed_pool, init_args.num_runs)
+        # random.sample(seed_pool, init_args.num_runs)
+        if init_args.num_runs == 1:
+            seeds = seed_pool[init_args.seed]
+        else:
+            seeds = seed_pool[: init_args.num_runs]
 
     print(f"-------------------------------------------------------")
     print(f"      Running ID: {unique_id}")
