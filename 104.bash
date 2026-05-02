@@ -1,56 +1,29 @@
 #!/usr/bin/env bash
-# 104 — wall-clock benchmark: irpo and ppo on pointmaze-v1 and antmaze-v1.
-# Runs SERIALLY on a single GPU (no concurrency, no GPU contention) so the
-# wall-clock time of each run is uncontaminated. --num-runs 3 per config so
-# each measurement covers three full training runs.
-#
-# Output: log/104_<algo>_<env>.out and stderr-printed wall-clock from `time`.
+# Europa — NEW_IRPO pacman: hrl on GPU 0, maml on GPU 1, 5 seeds each.
 
-PROJECT="wallclock_104"
-
-if [[ "${DETACHED:-0}" != "1" ]]; then
-    mkdir -p log
-    DETACHED=1 nohup bash "$0" "$@" > "log/${PROJECT}.master.out" 2>&1 &
-    disown
-    echo "Launched detached ${PROJECT} benchmark. Monitor log/${PROJECT}.master.out"
-    exit 0
-fi
-
-set -u
 mkdir -p log
-GPU=${GPU:-0}
 
-CONFIGS=(
-    "irpo|pointmaze-v1"
-    "irpo|antmaze-v1"
-    "ppo|pointmaze-v1"
-    "ppo|antmaze-v1"
-)
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type random --seed 0 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed0.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type random --seed 1 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed1.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type random --seed 2 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed2.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type random --seed 3 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed3.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type random --seed 4 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed4.out 2>&1 &
+sleep 3
 
-for cfg in "${CONFIGS[@]}"; do
-    IFS='|' read -r algo env <<< "${cfg}"
-    tag="${PROJECT}_${algo}_${env}"
-    echo "=== launching ${tag} (gpu ${GPU}) ==="
-    (
-        start=$(date +%s)
-        python3 main.py \
-            --project "${PROJECT}" \
-            --env-name "${env}" \
-            --algo-name "${algo}" \
-            --num-runs 3 \
-            --gpu-idx "${GPU}" \
-            > "log/${tag}.out" 2>&1
-        rc=$?
-        end=$(date +%s)
-        secs=$((end - start))
-        echo "wall_clock_seconds=${secs}  exit=${rc}" | tee -a "log/${tag}.out"
-    ) &
-    sleep 3
-done
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type allo --seed 0 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed0.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type allo --seed 1 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed1.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type allo --seed 2 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed2.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type allo --seed 3 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed3.out 2>&1 &
+sleep 3
+nohup python3 main.py --project NEW_IRPO --env-name pacman --algo-name irpo --int-reward-type allo --seed 4 --gpu-idx 0 > log/NEW_IRPO_pacman_irpo_seed4.out 2>&1 &
+sleep 3
 
-echo "=== done; per-run wall-clock summary ==="
-for cfg in "${CONFIGS[@]}"; do
-    IFS='|' read -r algo env <<< "${cfg}"
-    tag="${PROJECT}_${algo}_${env}"
-    grep -h "wall_clock_seconds" "log/${tag}.out" | tail -1 | sed "s/^/${tag}: /"
-done
+disown -a
+echo "Launched 10 NEW_IRPO jobs."
