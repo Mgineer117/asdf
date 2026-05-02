@@ -529,8 +529,8 @@ class MazeWrapper(gym.Wrapper):
         plt.axis("equal")
         plt.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.7)
         plt.tight_layout()
-        plt.close()
 
+        # Don't close here: caller (write_image) closes after consuming.
         return fig
 
     def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):

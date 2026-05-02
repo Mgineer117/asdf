@@ -188,6 +188,32 @@ class OnlineSampler(Base):
         seed: int,
         deterministic: bool = False,
     ):
+        # Surface worker exceptions: without this wrapper the parent waits
+        # 20 min on queue.get and the actual traceback is lost.
+        try:
+            self._collect_trajectory_impl(pid, queue, env, policy, seed, deterministic)
+        except BaseException as e:
+            import sys
+            import traceback
+            sys.stderr.write(
+                f"[sampler worker {pid}] CRASHED: {type(e).__name__}: {e}\n"
+            )
+            traceback.print_exc(file=sys.stderr)
+            sys.stderr.flush()
+            # Re-raise so the OS records a non-zero exit code; the parent's
+            # `queue.get` will still time out, but at least the traceback
+            # is in the log.
+            raise
+
+    def _collect_trajectory_impl(
+        self,
+        pid,
+        queue,
+        env,
+        policy: nn.Module,
+        seed: int,
+        deterministic: bool = False,
+    ):
         # assign per-worker seed
         worker_seed = random.randint(0, 10000) + seed + pid
         np.random.seed(worker_seed)

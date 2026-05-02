@@ -224,7 +224,15 @@ class BaseTrainer:
     ):
         image_list = [image]
         image_path = os.path.join(logdir, name)
-        self.logger.write_images(step=step, images=image_list, logdir=image_path)
+        try:
+            self.logger.write_images(step=step, images=image_list, logdir=image_path)
+        finally:
+            # Producers (plot_fwd_velocity, MazeWrapper.get_trajectory_plot,
+            # etc.) may hand us a `plt.Figure`. Close it here so pyplot's
+            # registry doesn't accumulate them across evaluations and trip
+            # `figure.max_open_warning`.
+            if isinstance(image, plt.Figure):
+                plt.close(image)
 
     def write_video(self, image: list, step: int, logdir: str, name: str):
         if len(image) > 0:
