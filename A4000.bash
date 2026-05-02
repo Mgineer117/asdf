@@ -14,7 +14,7 @@ set -u
 mkdir -p log
 PROJECT="NEW_IRPO"
 ENV="pacman"
-SEEDS=(0 1 2 3 4)
+SEEDS=(0 1 2) # 3 4)
 
 # (gpu, algo)
 ALLOCATIONS=(
