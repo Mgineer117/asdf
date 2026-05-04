@@ -91,6 +91,7 @@ class ArcadeWrapper(gym.Wrapper):
 
         if encoder is not None:
             import torch
+
             self._torch = torch
             # Always run encoding on CPU — encoder runs in forked sampler workers
             # where CUDA cannot be re-initialized after fork.
@@ -282,9 +283,8 @@ class FetchWrapper(gym.Wrapper):
 
         reward += 1.0  # to scale reawrd [0, 1]
 
-        # # if reward == 1.0:
-        # if reward == 1.0:
-        #     termination = True  # terminate if goal is achieved
+        if reward == 1.0:
+            termination = True  # terminate if goal is achieved
 
         return observation, reward, termination, truncation, info
 
@@ -666,7 +666,7 @@ class AntMazeWrapper(MazeWrapper):
             cell_size=cell_size,
         )
 
-        self.healthy_reward = 0.0001
+        self.healthy_reward = 1.0
 
     def __getattr__(self, name):
         # Forward any unknown attribute to the inner environment
@@ -686,10 +686,10 @@ class AntMazeWrapper(MazeWrapper):
         reward += self.healthy_reward
 
         if (
-            observation_dict["observation"][0] >= 1.15
+            observation_dict["observation"][0] >= 1.35
             or observation_dict["observation"][0] <= 0.35
         ):
-            # reward -= self.healthy_penalty
+            reward -= self.healthy_penalty
             termination = True
 
         self.trajectory.append(observation_dict["achieved_goal"].copy())

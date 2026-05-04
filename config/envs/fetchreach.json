@@ -8,5 +8,5 @@
     "batch_size": 1024,
     "num_minibatch": 4,
     "minibatch_size": 256,
-    "discount_sampling_factor": 0.9
+    "discount_sampling_factor": 0.99
 }
