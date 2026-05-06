@@ -1,147 +1,37 @@
-from gymnasium.envs.registration import register
+"""Minimal single-agent discrete gridworld package.
 
+Public API:
+    GridEnv          — base class for new environments (subclass + ASCII map).
+    FourRooms / Maze — built-in environments.
+    CaptureTheFlag   — single-agent CTF variant.
+    maps             — ASCII map registry (FOURROOMS_MAPS, MAZE_MAPS, ...).
 
-# Collect game with 2 agents and 3 object types
-# ----------------------------------------
-register(
-    id="multigrid-collect-v0",
-    entry_point="gym_multigrid.envs:CollectGameEvenDist",
-    max_episode_steps=100,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": False,
-    },
+Quick start:
+
+    from gridworld import FourRooms
+    env = FourRooms(grid_type="v1", max_steps=100)
+    obs, info = env.reset()
+    obs, r, term, trunc, info = env.step(action_one_hot)
+"""
+
+from gridworld.env import (
+    AGENT,
+    EMPTY,
+    FLOOR,
+    GOAL,
+    LAVA,
+    OBSTACLE,
+    WALL,
+    GridEnv,
 )
+from gridworld.envs.ctf import CaptureTheFlag
+from gridworld.envs.fourrooms import FourRooms
+from gridworld.envs.maze import Maze
 
-# Collect game with single agent and 3 object types
-# ----------------------------------------
-register(
-    id="multigrid-collect-single-v0",
-    entry_point="gym_multigrid.envs:CollectGameEvenDist",
-    max_episode_steps=100,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3],  # green
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": False,
-    },
-)
-
-# Collect game with 2 agents and 3 object types clustered in different quadrants of the grid
-# ----------------------------------------
-register(
-    id="multigrid-collect-quadrants-v0",
-    entry_point="gym_multigrid.envs:CollectGameQuadrants",
-    max_episode_steps=100,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": False,
-    },
-)
-
-# Collect game with 2 agents and 3 object types clustered in four rooms
-# ----------------------------------------
-register(
-    id="multigrid-collect-rooms-v0",
-    entry_point="gym_multigrid.envs:CollectGameRooms",
-    max_episode_steps=100,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": False,
-    },
-)
-
-# Collect game with 2 agents and 3 object types clustered differently in four rooms
-# Episode has a fixed horizon instead of terminating after collecting all objects
-# ----------------------------------------
-register(
-    id="multigrid-collect-rooms-fixed-horizon-v0",
-    entry_point="gym_multigrid.envs:CollectGameRoomsFixedHorizon",
-    max_episode_steps=100,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": False,
-    },
-)
-
-# Collect game with 2 agents and 3 object types clustered differently in four rooms
-# Episode has a fixed horizon and objects respawn after collection
-# ----------------------------------------
-register(
-    id="multigrid-collect-rooms-respawn-v0",
-    entry_point="gym_multigrid.envs:CollectGameRoomsFixedHorizon",
-    max_episode_steps=50,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": True,
-    },
-)
-
-# Collect game with 2 agents and 3 object types
-# Episode has a fixed horizon and objects respawn after collection
-# ----------------------------------------
-register(
-    id="multigrid-collect-respawn-v0",
-    entry_point="gym_multigrid.envs:CollectGameEvenDist",
-    max_episode_steps=50,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": True,
-    },
-)
-
-# Collect game with 2 agents and 3 object types clustered in different quadrants of the grid
-# Episode has a fixed horizon and objects respawn after collection
-# ----------------------------------------
-register(
-    id="multigrid-collect-respawn-clustered-v0",
-    entry_point="gym_multigrid.envs:CollectGameQuadrantsRespawn",
-    max_episode_steps=50,
-    kwargs={
-        "size": 10,
-        "num_balls": 15,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": True,
-    },
-)
-
-register(
-    id="multigrid-collect-quadrants15-v0",
-    entry_point="gym_multigrid.envs:CollectGameQuadrants",
-    kwargs={
-        "size": 15,
-        "num_balls": 30,
-        "agents_index": [3, 5],  # green, purple
-        "balls_index": [0, 1, 2],  # red, orange, yellow
-        "balls_reward": [1, 1, 1],
-        "respawn": False,
-    },
-)
+__all__ = [
+    "GridEnv",
+    "FourRooms",
+    "Maze",
+    "CaptureTheFlag",
+    "WALL", "EMPTY", "GOAL", "LAVA", "FLOOR", "OBSTACLE", "AGENT",
+]
