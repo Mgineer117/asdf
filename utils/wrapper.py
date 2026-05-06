@@ -250,6 +250,20 @@ class FetchWrapper(gym.Wrapper):
         self.max_steps = episode_len
         self.seed = seed
 
+        obs_space = env.observation_space
+        if isinstance(obs_space, gym.spaces.Dict):
+            flat_dim = (
+                int(np.prod(obs_space["observation"].shape))
+                + int(np.prod(obs_space["achieved_goal"].shape))
+                + int(np.prod(obs_space["desired_goal"].shape))
+            )
+            self.observation_space = gym.spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(flat_dim,),
+                dtype=np.float32,
+            )
+
     def __getattr__(self, name):
         # Forward any unknown attribute to the inner environment
         return getattr(self.env, name)
@@ -420,6 +434,20 @@ class MazeWrapper(gym.Wrapper):
         self.desired_goal = None
 
         self.cell_size = cell_size
+
+        obs_space = env.observation_space
+        if isinstance(obs_space, gym.spaces.Dict):
+            flat_dim = (
+                int(np.prod(obs_space["observation"].shape))
+                + int(np.prod(obs_space["achieved_goal"].shape))
+                + int(np.prod(obs_space["desired_goal"].shape))
+            )
+            self.observation_space = gym.spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(flat_dim,),
+                dtype=np.float32,
+            )
 
     def __getattr__(self, name):
         # Forward any unknown attribute to the inner environment

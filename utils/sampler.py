@@ -189,7 +189,8 @@ class OnlineSampler(Base):
         deterministic: bool = False,
     ):
         # assign per-worker seed
-        worker_seed = random.randint(0, 10000) + seed + pid
+        base_seed = 0 if seed is None else seed
+        worker_seed = random.randint(0, 10000) + base_seed + pid
         np.random.seed(worker_seed)
         random.seed(worker_seed)
         torch.manual_seed(worker_seed)
@@ -200,15 +201,30 @@ class OnlineSampler(Base):
         step_count = 0
         ep_step = 0
 
-        state, _ = env.reset(seed=worker_seed)
+        try:
+            state, _ = env.reset(seed=worker_seed)
+        except TypeError:
+            state = env.reset()
+            if isinstance(state, tuple) and len(state) == 2:
+                state, _ = state
 
         # Continuously sample until the exact worker_batch_size is met
         while step_count < self.worker_batch_size:
             with torch.no_grad():
                 a, metaData = policy(state, deterministic=deterministic)
-                a = a.cpu().numpy().flatten()
+                a = a.cpu().numpy()
+                if not hasattr(env, "num_envs"):
+                    a = a.flatten()
 
-            next_state, rew, term, trunc, _ = env.step(a)
+            step_out = env.step(a)
+            if isinstance(step_out, tuple) and len(step_out) == 5:
+                next_state, rew, term, trunc, _ = step_out
+            elif isinstance(step_out, tuple) and len(step_out) == 4:
+                next_state, rew, done, _ = step_out
+                term = done
+                trunc = False
+            else:
+                raise RuntimeError(f"Unsupported env.step return signature: {type(step_out)} with len={len(step_out) if isinstance(step_out, tuple) else 'n/a'}")
             ep_step += 1
 
             if ep_step >= self.episode_len:
@@ -273,7 +289,8 @@ class HLSampler(OnlineSampler):
         seed: int | None = None,
         deterministic: bool = False,
     ):
-        worker_seed = random.randint(0, 10000) + seed + pid
+        base_seed = 0 if seed is None else seed
+        worker_seed = random.randint(0, 10000) + base_seed + pid
         np.random.seed(worker_seed)
         random.seed(worker_seed)
         torch.manual_seed(worker_seed)

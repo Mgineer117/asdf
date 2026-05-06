@@ -60,6 +60,11 @@ def run(args, seed, unique_id, exp_time, result_csv_path=None, is_sweep=False):
         from algorithms.htrpo import HTRPO_Algorithm
 
         algo = HTRPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
+    elif args.algo_name == "sb3_ppo":
+        # Stable-Baselines3 PPO using the repo sampler via wrapper
+        from wrappers.sb3_alg.ppo import SB3_PPO_Algorithm
+
+        algo = SB3_PPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
     else:
         raise NotImplementedError(f"{args.algo_name} is not implemented.")
 

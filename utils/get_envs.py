@@ -1,4 +1,5 @@
 import gymnasium as gym
+from gymnasium import spaces
 
 import gymnasium_robotics
 
@@ -207,11 +208,14 @@ def get_env(args):
         args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.n
     elif env_name in ["pointmaze", "pointmazeG", "antmaze", "antmazeG", "fetchreach", "fetchpush", "fetchpusheasy"]:
-        args.state_dim = (
-            env.observation_space["observation"].shape[0]
-            + env.observation_space["achieved_goal"].shape[0]
-            + env.observation_space["desired_goal"].shape[0],
-        )
+        if isinstance(env.observation_space, spaces.Dict):
+            args.state_dim = (
+                env.observation_space["observation"].shape[0]
+                + env.observation_space["achieved_goal"].shape[0]
+                + env.observation_space["desired_goal"].shape[0],
+            )
+        else:
+            args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.shape[0]
     elif env_name in ["pacman", "amidar"]:
         # observation_space.shape is (encoder_dim,) after ArcadeWrapper encoding
