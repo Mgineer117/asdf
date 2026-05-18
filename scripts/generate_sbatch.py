@@ -6,12 +6,12 @@ algos = ["ppo", "irpo", "maml", "hrl", "drnd", "trpo", "psne", "htrpo"]
 sbatch_template = """#!/bin/bash
 #SBATCH --job-name={env}_{algo}
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=IllinoisComputes-GPU
+#SBATCH --partition={partition}
 #SBATCH --nodes=1
 #SBATCH --ntasks=10
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=3-00:00:00
+#SBATCH --time={time_limit}
 #SBATCH --output=logs/{env}_{algo}.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
@@ -49,12 +49,19 @@ os.makedirs("scripts", exist_ok=True)
 # Generate sbatch files
 for env in envs:
     for algo in algos:
+        if algo in ["irpo", "maml", "hrl"]:
+            partition = "IllinoisComputes-GPU"
+            time_limit = "3-00:00:00"
+        else:
+            partition = "eng-research-gpu"
+            time_limit = "2-00:00:00"
+            
         filepath = f"scripts/{env}_{algo}.sbatch"
-        content = sbatch_template.format(env=env, algo=algo)
+        content = sbatch_template.format(env=env, algo=algo, partition=partition, time_limit=time_limit)
         with open(filepath, "w") as f:
             f.write(content)
         os.chmod(filepath, 0o755)
-        print(f"Generated {filepath}")
+        print(f"Generated {filepath} (Partition: {partition}, Time: {time_limit})")
 
 # Generate submit_all.sh
 submit_content = """#!/bin/bash
