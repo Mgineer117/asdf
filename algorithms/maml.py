@@ -5,7 +5,7 @@ from utils.functions import build_activation
 from policy.maml import MAML_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.intrinsic_rewards import ALLOIntRewardFunctions, RandomIntRewardFunctions
-from utils.sampler import OnlineSampler
+from utils.sampler import build_sampler
 
 
 class MAML_Algorithm(nn.Module):
@@ -37,12 +37,7 @@ class MAML_Algorithm(nn.Module):
 
     def begin_training(self):
         # === Sampler === #
-        sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.args.episode_len,
-            batch_size=self.args.batch_size,
-        )
+        sampler = build_sampler(self.args)
 
         # === Meta-train using options === #'
         self.define_base_policy()

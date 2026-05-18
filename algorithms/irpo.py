@@ -11,7 +11,7 @@ from utils.intrinsic_rewards import (
     RandomIntRewardFunctions,
     RandomIntRewardFunctionsG,
 )
-from utils.sampler import OnlineSampler
+from utils.sampler import build_sampler
 
 
 class IRPO_Algorithm(nn.Module):
@@ -62,12 +62,7 @@ class IRPO_Algorithm(nn.Module):
 
     def begin_training(self):
         # === Sampler === #
-        sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.args.episode_len,
-            batch_size=self.args.batch_size,
-        )
+        sampler = build_sampler(self.args)
 
         # === Meta-train using options === #'
         self.define_base_policy()

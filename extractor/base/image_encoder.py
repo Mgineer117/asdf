@@ -161,14 +161,14 @@ def pretrain_image_encoder(
         encoder.load_state_dict(torch.load(model_path, map_location="cpu"))
         encoder = encoder.to(device)
         encoder.eval()
-        return encoder
+        return _jit_trace_encoder(encoder, chw_shape, device)
     if os.path.exists(legacy_model_path):
         print(
             f"[INFO] Loading pretrained encoder from legacy path {legacy_model_path}"
         )
         encoder.load_state_dict(torch.load(legacy_model_path, map_location=device))
         encoder.eval()
-        return encoder
+        return _jit_trace_encoder(encoder, chw_shape, device)
 
     print(f"[INFO] Pretraining image encoder → {model_path}")
     print(f"[INFO] Collecting {n_frames} random frames …")
@@ -204,7 +204,7 @@ def pretrain_image_encoder(
     encoder.eval()
 
     # JIT-trace for faster inference (eliminates Python overhead in forward pass)
-    # encoder = _jit_trace_encoder(encoder, chw_shape, device)
+    encoder = _jit_trace_encoder(encoder, chw_shape, device)
 
     return encoder
 

@@ -157,6 +157,14 @@ def get_env(args):
             device=getattr(args, "device", "cpu"),
         )
         env = ArcadeWrapper(_raw_env, encoder=_encoder, device=getattr(args, "device", "cpu"))
+
+        # Store factory + encoder for VectorizedSampler (batched GPU encoding)
+        _atari_env_id = atari_env_id
+        _episode_len = episode_len
+        args.env_fn = lambda: gym.make(
+            _atari_env_id, max_episode_steps=_episode_len, obs_type="grayscale"
+        )
+        args.encoder = _encoder
     elif env_name == "ant":
         env = gym.make(
             "Ant-v5",

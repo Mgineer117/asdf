@@ -89,10 +89,10 @@ class ArcadeWrapper(gym.Wrapper):
         super().__init__(env)
         self._encoder = encoder
 
+        self.device = device
+
         if encoder is not None:
-            # Always run encoding on CPU — encoder runs in forked sampler workers
-            # where CUDA cannot be re-initialized after fork.
-            self._encoder = encoder.cpu()
+            self._encoder = encoder
             self.observation_space = gym.spaces.Box(
                 low=-np.inf,
                 high=np.inf,
@@ -109,9 +109,9 @@ class ArcadeWrapper(gym.Wrapper):
         import torch
         # obs: (H, W) uint8 grayscale
         t = torch.from_numpy(obs.astype(np.float32) / 255.0)
-        t = t.unsqueeze(0).unsqueeze(0)  # (1, 1, H, W) — always CPU
+        t = t.unsqueeze(0).unsqueeze(0)  # (1, 1, H, W)
         with torch.no_grad():
-            feat = self._encoder(t)  # (1, encoder_dim)
+            feat = self._encoder(t.to(self.device))  # (1, encoder_dim)
         return feat.squeeze(0).cpu().numpy()  # (encoder_dim,)
 
     def step(self, action):
