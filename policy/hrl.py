@@ -86,12 +86,12 @@ class HRL_Learner(Base):
             logits, metaData = self.actor(state, deterministic=deterministic)
             option_idx = torch.argmax(logits, dim=-1).item()
         else:
-            logits = torch.tensor(np.full((1, self.action_dim), np.nan)).to(self.device)
+            logits = torch.full((1, self.action_dim), float('nan'), dtype=torch.float32, device=self.device)
             metaData = {
-                "probs": torch.tensor(np.nan).to(self.device),
-                "logprobs": torch.tensor(np.nan).to(self.device),
-                "entropy": torch.tensor(np.nan).to(self.device),
-                "dist": torch.tensor(np.nan).to(self.device),
+                "probs": torch.tensor(float('nan'), dtype=torch.float32, device=self.device),
+                "logprobs": torch.tensor(float('nan'), dtype=torch.float32, device=self.device),
+                "entropy": torch.tensor(float('nan'), dtype=torch.float32, device=self.device),
+                "dist": torch.tensor(float('nan'), dtype=torch.float32, device=self.device),
             }
 
         is_option = True if option_idx < len(self.policies) - 1 else False

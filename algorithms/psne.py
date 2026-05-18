@@ -4,7 +4,7 @@ from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from utils.functions import build_activation
 from policy.psne import PSNE_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
-from utils.sampler import build_sampler
+from utils.sampler import OnlineSampler, build_sampler
 
 
 class PSNE_Algorithm(nn.Module):
