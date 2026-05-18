@@ -8,7 +8,7 @@ sbatch_template = """#!/bin/bash
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
-#SBATCH --ntasks=3
+#SBATCH --ntasks=10
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=3-00:00:00
@@ -34,14 +34,13 @@ conda activate irpo
 # Create logs directory if missing
 mkdir -p logs
 
-# === Run 3 seeds in parallel on 1 GPU / Node === #
-python3 main.py --project NEW_IRPO --env-name {env} --algo-name {algo} --seed 0 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name {env} --algo-name {algo} --seed 1 --gpu-idx 0 &
-sleep 3
-python3 main.py --project NEW_IRPO --env-name {env} --algo-name {algo} --seed 2 --gpu-idx 0 &
+# === Run 10 seeds (0-9) in parallel on 1 GPU / Node === #
+for SEED in {{0..9}}; do
+    python3 main.py --project NEW_IRPO --env-name {env} --algo-name {algo} --seed $SEED --gpu-idx 0 &
+    sleep 3
+done
 
-# === Wait for all 3 runs to finish ===
+# === Wait for all 10 runs to finish ===
 wait
 """
 
@@ -66,7 +65,7 @@ mkdir -p logs
 echo "========================================================="
 echo " Submitting all 16 Experiment Jobs to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
-echo " running 3 seeds in parallel on 1 GPU."
+echo " running 10 seeds (0-9) in parallel on 1 GPU."
 echo "========================================================="
 
 """
