@@ -92,6 +92,14 @@ class OnlineSampler(Base):
         for p in policies:
             p.to_device(torch.device("cpu"))
 
+        # If environment has a GPU-based encoder, move it to CPU temporarily
+        # to prevent CUDA re-initialization errors in forked multiprocessing workers
+        original_env_device = None
+        if hasattr(env, "_encoder") and env._encoder is not None:
+            original_env_device = getattr(env, "device", "cpu")
+            env._encoder = env._encoder.cpu()
+            env.device = "cpu"
+
         processes = []
         queue = mp.Queue()
 
@@ -173,6 +181,11 @@ class OnlineSampler(Base):
         # Restore policies to original devices
         for p, device in zip(policies, original_devices):
             p.to_device(device)
+
+        # Restore environment encoder to original device
+        if original_env_device is not None:
+            env.device = original_env_device
+            env._encoder = env._encoder.to(original_env_device)
 
         if num_policies == 1:
             policy_memories = policy_memories[0]
