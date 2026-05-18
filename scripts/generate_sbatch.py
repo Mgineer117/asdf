@@ -1,7 +1,7 @@
 import os
 
 envs = ["pacman", "amidar"]
-algos = ["ppo", "irpo", "maml", "hrl", "drnd", "trpo", "psne", "htrpo"]
+algos = ["ppo", "irpo", "maml", "hrl", "drnd", "trpo", "psne"]
 
 sbatch_template = """#!/bin/bash
 #SBATCH --job-name={env}_{algo}
@@ -70,7 +70,7 @@ submit_content = """#!/bin/bash
 mkdir -p logs
 
 echo "========================================================="
-echo " Submitting all 16 Experiment Jobs to the Cluster"
+echo " Submitting all 14 Experiment Jobs to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
 echo " running 10 seeds (0-9) in parallel on 1 GPU."
 echo "========================================================="
@@ -82,7 +82,7 @@ for env in envs:
         submit_content += f'echo "[SUBMIT] scripts/{env}_{algo}.sbatch"\nsbatch scripts/{env}_{algo}.sbatch\nsleep 0.5\n\n'
 
 submit_content += """echo "========================================================="
-echo " All 16 jobs successfully submitted to queue!"
+echo " All 14 jobs successfully submitted to queue!"
 echo " Check progress using: squeue -u $(whoami)"
 echo " Logs will be stored in: logs/"
 echo "========================================================="
