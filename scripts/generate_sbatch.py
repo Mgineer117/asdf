@@ -50,8 +50,8 @@ os.makedirs("scripts", exist_ok=True)
 for env in envs:
     for algo in algos:
         if algo in ["irpo", "maml", "hrl"]:
-            partition = "IllinoisComputes-GPU"
-            time_limit = "3-00:00:00"
+            partition = "csl"
+            time_limit = "4-00:00:00"
         else:
             partition = "eng-research-gpu"
             time_limit = "2-00:00:00"
