@@ -4,7 +4,6 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.autograd import grad
 
 from policy.layers.base import Base

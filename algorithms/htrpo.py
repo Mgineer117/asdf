@@ -1,12 +1,10 @@
 from policy.htrpo import HTRPO_Learner
-import torch
 import torch.nn as nn
 
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from utils.functions import build_activation
-from policy.trpo import TRPO_Learner
 from trainer.onpolicy_trainer import OnPolicyTrainer
-from utils.sampler import OnlineSampler
+from utils.sampler import build_sampler
 
 
 class HTRPO_Algorithm(nn.Module):
@@ -26,12 +24,7 @@ class HTRPO_Algorithm(nn.Module):
         self.define_policy()
 
         # === Sampler === #
-        sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.args.episode_len,
-            batch_size=self.args.batch_size,
-        )
+        sampler = build_sampler(self.args)
 
         trainer = OnPolicyTrainer(
             env=self.env,

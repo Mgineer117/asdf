@@ -90,9 +90,6 @@ class ArcadeWrapper(gym.Wrapper):
         self._encoder = encoder
 
         if encoder is not None:
-            import torch
-
-            self._torch = torch
             # Always run encoding on CPU — encoder runs in forked sampler workers
             # where CUDA cannot be re-initialized after fork.
             self._encoder = encoder.cpu()
@@ -109,10 +106,11 @@ class ArcadeWrapper(gym.Wrapper):
         """Encode a raw pixel frame to a feature vector (if encoder set)."""
         if self._encoder is None:
             return obs
+        import torch
         # obs: (H, W) uint8 grayscale
-        t = self._torch.from_numpy(obs.astype(np.float32) / 255.0)
+        t = torch.from_numpy(obs.astype(np.float32) / 255.0)
         t = t.unsqueeze(0).unsqueeze(0)  # (1, 1, H, W) — always CPU
-        with self._torch.no_grad():
+        with torch.no_grad():
             feat = self._encoder(t)  # (1, encoder_dim)
         return feat.squeeze(0).cpu().numpy()  # (encoder_dim,)
 
@@ -131,9 +129,7 @@ class ArcadeWrapper(gym.Wrapper):
     def get_trajectory_plot(self, trajectories: list, desired_goals: list):
         return None
 
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
+
 
 
 class MujocoWrapper(gym.Wrapper):
@@ -196,11 +192,7 @@ class MujocoWrapper(gym.Wrapper):
     def get_trajectory_plot(self, trajectories: list, desired_goals: list):
         return None
 
-    def __getattr__(self, name):
-        # Prevent infinite recursion for internal wrapper attributes
-        if name in self.__dict__:
-            return self.__dict__[name]
-        return getattr(self.env, name)
+
 
 
 class GridWrapper(gym.Wrapper):
@@ -239,9 +231,7 @@ class GridWrapper(gym.Wrapper):
     def get_trajectory_plot(self, trajectories: list, desired_goals: list):
         return None
 
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
+
 
 
 class FetchWrapper(gym.Wrapper):
@@ -251,9 +241,7 @@ class FetchWrapper(gym.Wrapper):
         self.max_steps = episode_len
         self.seed = seed
 
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
+
 
     def reset(self, **kwargs):
         observation_dict, info = self.env.reset(**kwargs)
@@ -354,7 +342,7 @@ class FetchWrapper(gym.Wrapper):
             # Create 3D scatter plot
             fig = plt.figure(figsize=(8, 6))
             ax = fig.add_subplot(111, projection="3d")
-            sc = ax.scatter(
+            ax.scatter(
                 states[:, 0],
                 states[:, 1],
                 states[:, 2],
@@ -421,9 +409,7 @@ class MazeWrapper(gym.Wrapper):
 
         self.cell_size = cell_size
 
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
+
 
     def reset(self, **kwargs):
         observation_dict, info = self.env.reset(**kwargs)
@@ -536,7 +522,6 @@ class MazeWrapper(gym.Wrapper):
     def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):
         # Get desired goal (2D)
         state, _ = self.reset(seed=self.seed)
-        dg = state[-4:-2]
         del state
         self.close()
 
@@ -668,9 +653,7 @@ class AntMazeWrapper(MazeWrapper):
 
         self.healthy_reward = 1.0
 
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
+
 
     def step(self, action):
         # Call the original step method

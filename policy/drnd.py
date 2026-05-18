@@ -3,7 +3,6 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic

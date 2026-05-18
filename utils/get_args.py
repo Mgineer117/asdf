@@ -171,7 +171,7 @@ def get_args():
         "--irpo-type",
         type=str,
         default="irpo",
-        help="Specifies the variant of the IRPO algorithm to use. Choices: {'irpo', 'irpo_lr', 'irpo_pick', 'irpo_blend', 'irpo_is'}.",
+        help="Specifies the variant of the IRPO algorithm to use. Choices: {'irpo', 'irpo_lr', 'irpo_pick', 'irpo_blend'}.",
     )
     parser.add_argument(
         "--base-policy-update-type",
@@ -209,18 +209,7 @@ def get_args():
         default=0.2,
         help="IRPO temperature annealing horizon in learning progress. Temperature linearly decays to 0 when learning_progress reaches this value.",
     )
-    parser.add_argument(
-        "--min-base-updates",
-        type=int,
-        default=5,
-        help="Thompson-sampling IRPO: once an option is sampled, run at least this many base-policy updates with it before re-sampling.",
-    )
-    parser.add_argument(
-        "--trpo-switch-progress",
-        type=float,
-        default=0.5,
-        help="IRPO_TRPO: learning-progress threshold p above which we switch from IRPO to a vanilla TRPO update on the best final exploratory policy.",
-    )
+
     parser.add_argument(
         "--find-lr",
         action="store_true",
@@ -370,24 +359,24 @@ def get_args():
 
 
 def select_device(gpu_idx=0, verbose=True):
+    device = torch.device("cpu")
+    device_name = "cpu"
+
+    if torch.cuda.is_available() and gpu_idx is not None:
+        device = torch.device("cuda:" + str(gpu_idx))
+        torch.cuda.empty_cache()
+        device_name = str(torch.cuda.get_device_name(device))
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = torch.device("mps")
+        device_name = "mps (Apple Silicon GPU)"
+
     if verbose:
         print(
             "============================================================================================"
         )
-        # set device to cpu or cuda
-        device = torch.device("cpu")
-        if torch.cuda.is_available() and gpu_idx is not None:
-            device = torch.device("cuda:" + str(gpu_idx))
-            torch.cuda.empty_cache()
-            print("Device set to : " + str(torch.cuda.get_device_name(device)))
-        else:
-            print("Device set to : cpu")
+        print("Device set to : " + device_name)
         print(
             "============================================================================================"
         )
-    else:
-        device = torch.device("cpu")
-        if torch.cuda.is_available() and gpu_idx is not None:
-            device = torch.device("cuda:" + str(gpu_idx))
-            torch.cuda.empty_cache()
+
     return device

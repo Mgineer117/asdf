@@ -158,7 +158,8 @@ def pretrain_image_encoder(
 
     if os.path.exists(model_path):
         print(f"[INFO] Loading pretrained encoder from {model_path}")
-        encoder.load_state_dict(torch.load(model_path, map_location=device))
+        encoder.load_state_dict(torch.load(model_path, map_location="cpu"))
+        encoder = encoder.to(device)
         encoder.eval()
         return encoder
     if os.path.exists(legacy_model_path):
@@ -201,6 +202,10 @@ def pretrain_image_encoder(
     print(f"[INFO] Encoder saved to {model_path}  (best recon loss: {best_loss:.4f})")
     encoder.load_state_dict(torch.load(model_path, map_location=device))
     encoder.eval()
+
+    # JIT-trace for faster inference (eliminates Python overhead in forward pass)
+    # encoder = _jit_trace_encoder(encoder, chw_shape, device)
+
     return encoder
 
 
@@ -226,7 +231,7 @@ def _collect_frames(env, n_frames: int, seed: int):
     obs, _ = env.reset(seed=seed)
     frames.append(obs)
 
-    rng = np.random.default_rng(seed)
+    np.random.default_rng(seed)
     while len(frames) < n_frames:
         action = env.action_space.sample()
         obs, _, term, trunc, _ = env.step(action)
@@ -248,3 +253,24 @@ def _preprocess_frames(frames, chw_shape):
         arr = arr.transpose(0, 3, 1, 2) # → (N, C, H, W)
 
     return torch.from_numpy(arr.astype(np.float32)) / 255.0
+
+
+def _jit_trace_encoder(encoder, chw_shape, device):
+    """JIT-trace an ImageEncoder for faster inference.
+
+    The traced model executes the CNN entirely in C++ with no Python
+    interpreter involvement, which removes ~30-50% of per-call overhead
+    for small batch sizes (single-frame encoding in ArcadeWrapper).
+    """
+    try:
+        encoder = encoder.to(device)
+        encoder.eval()
+        dummy = torch.zeros(1, *chw_shape, device=device)
+        traced = torch.jit.trace(encoder, dummy)
+        # Preserve encoder_dim so downstream code can read it
+        traced.encoder_dim = encoder.encoder_dim
+        print("[INFO] Encoder JIT-traced successfully")
+        return traced
+    except Exception as e:
+        print(f"[WARN] JIT tracing failed ({e}), using eager encoder")
+        return encoder

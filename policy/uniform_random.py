@@ -1,12 +1,10 @@
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from policy.layers.base import Base
 
 # from utils.torch import get_flat_grad_from, get_flat_params_from, set_flat_params_to
-from utils.rl import estimate_advantages
 
 # from models.layers.ppo_networks import PPO_Policy, PPO_Critic
 

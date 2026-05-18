@@ -236,7 +236,6 @@ class TRPO_Learner(Base):
         loss_dict.update(grad_dict)
 
         # Cleanup
-        del states, actions, rewards, terminations, old_logprobs
         self.eval()
 
         # reduce target_kl for next iteration

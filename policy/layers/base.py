@@ -1,4 +1,3 @@
-import os
 from copy import deepcopy
 
 import numpy as np
@@ -140,15 +139,17 @@ class Base(nn.Module):
         the network's forward pass using self.input_shape.
         """
         if isinstance(state, np.ndarray):
-            state = torch.as_tensor(state)
+            state = torch.as_tensor(state, dtype=self.dtype)
         elif not isinstance(state, torch.Tensor):
             raise ValueError("Unsupported state type. Must be a tensor or numpy array.")
+        else:
+            state = state.to(self.dtype)
 
         # Use the actual parameter device — self.device can be stale if the module
         # was moved to a different device after construction (e.g. via parent.to(cuda)).
         p = next(self.parameters(), None)
         device = p.device if p is not None else self.device
-        state = state.to(device).to(self.dtype)
+        state = state.to(device)
 
         # Ensure batch dimension exists for basic unbatched 1D vectors
         if state.ndim == 1:
@@ -243,7 +244,6 @@ class Base(nn.Module):
             alpha = 0.01
 
         wall_idx = 2
-        agent_idx = 10
         goal_idx = 8
 
         if isinstance(states, torch.Tensor):

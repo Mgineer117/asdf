@@ -41,6 +41,7 @@ class WandbLogger(BaseLogger):
                     resume="allow",
                     config=config,  # type: ignore
                     settings=wandb.Settings(init_timeout=120),
+                    mode="offline",
                 )
                 if not wandb.run
                 else wandb.run
@@ -124,4 +125,3 @@ class WandbLogger(BaseLogger):
 
     def restore_data(self) -> None:
         """Not implemented yet"""
-        pass

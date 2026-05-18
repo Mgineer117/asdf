@@ -1,6 +1,5 @@
 import datetime
 import os
-import random
 import shutil
 import uuid
 
@@ -86,6 +85,8 @@ def run(args, seed, unique_id, exp_time, result_csv_path=None, is_sweep=False):
 
 if __name__ == "__main__":
     torch.set_default_dtype(torch.float32)
+    import torch.multiprocessing as mp
+    mp.set_start_method("fork", force=True)
 
     init_args = get_args()
     unique_id = str(uuid.uuid4())[:4]

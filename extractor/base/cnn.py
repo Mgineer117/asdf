@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.distributions.multivariate_normal import MultivariateNormal
 
 from policy.layers.building_blocks import MLP
 

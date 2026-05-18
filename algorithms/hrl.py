@@ -1,7 +1,4 @@
-import os
-from copy import deepcopy
 
-import torch
 import torch.nn as nn
 
 from policy.hrl import HRL_Learner
@@ -11,7 +8,7 @@ from policy.uniform_random import UniformRandom
 from trainer.hrl_trainer import HRLTrainer
 from utils.functions import build_activation
 from utils.intrinsic_rewards import ALLOIntRewardFunctions, RandomIntRewardFunctions
-from utils.sampler import HLSampler, OnlineSampler
+from utils.sampler import HLSampler, build_sampler
 
 
 class HRL(nn.Module):
@@ -62,12 +59,10 @@ class HRL(nn.Module):
             verbose=False,
         )
 
-        sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.args.episode_len,
-            batch_size=int(self.args.minibatch_size * self.args.num_minibatch),
+        sampler = build_sampler(
+            self.args,
             verbose=False,
+            batch_size=int(self.args.minibatch_size * self.args.num_minibatch),
         )
 
         trainer = HRLTrainer(

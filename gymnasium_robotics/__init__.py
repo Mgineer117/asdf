@@ -2,9 +2,7 @@
 import gymnasium
 from gymnasium import register
 
-from gymnasium_robotics.core import GoalEnv
 from gymnasium_robotics.envs.maze import maps
-from gymnasium_robotics.envs.multiagent_mujoco import mamujoco_v1
 
 __version__ = "1.4.2"
 

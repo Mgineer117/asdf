@@ -228,21 +228,18 @@ class BaseRobotEnv(GoalEnv):
 
         Can be used to configure initial state and extract information from the simulation.
         """
-        pass
 
     def _render_callback(self):
         """A custom callback that is called before rendering.
 
         Can be used to implement custom visualizations.
         """
-        pass
 
     def _step_callback(self):
         """A custom callback that is called after stepping the simulation.
 
         Can be used to enforce additional constraints on the simulation state.
         """
-        pass
 
 
 class MujocoRobotEnv(BaseRobotEnv):
@@ -445,4 +442,3 @@ class MujocoPyRobotEnv(BaseRobotEnv):
 
     def _viewer_setup(self):
         """Initial configuration of the viewer. Can be used to set the camera position, for example."""
-        pass

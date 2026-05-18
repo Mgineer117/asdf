@@ -3,11 +3,9 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-import random
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import grad
-from torch.distributions import Normal
 import matplotlib.pyplot as plt
 from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic

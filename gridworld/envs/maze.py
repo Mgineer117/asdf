@@ -1,37 +1,18 @@
 import random
-from itertools import chain
 from typing import (
-    Any,
-    Final,
-    Iterable,
     Literal,
-    SupportsFloat,
-    TypeAlias,
-    TypedDict,
-    TypeVar,
 )
 
 import numpy as np
 import torch
 from gymnasium import spaces
-from gymnasium.core import ActType, ObsType
-from numpy.typing import NDArray
 
-from gridworld.core.agent import Agent, AgentT, GridActions, PolicyAgent
-from gridworld.core.constants import *
+from gridworld.core.agent import Agent, GridActions
 from gridworld.core.grid import Grid
-from gridworld.core.object import Floor, Goal, Lava, Obstacle, Wall
+from gridworld.core.object import Floor, Goal, Wall
 from gridworld.core.world import GridWorld
 from gridworld.envs.__init__ import MAZE_G_MAPS, MAZE_MAPS
 from gridworld.multigrid import MultiGridEnv
-from gridworld.policy.ctf.heuristic import (
-    HEURISTIC_POLICIES,
-    CtfPolicyT,
-    RoombaPolicy,
-    RwPolicy,
-)
-from gridworld.typing import Position
-from gridworld.utils.window import Window
 
 
 class Maze(MultiGridEnv):
@@ -337,7 +318,6 @@ class Maze(MultiGridEnv):
         empty_idx = 1
         goal_idx = 8
         agent_idx = 10
-        obs_idx = 13
         wall_idx = 2
 
         # Get base state

@@ -8,9 +8,7 @@ import torch.nn as nn
 from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from utils.rl import (
-    compute_kl,
     conjugate_gradients,
-    estimate_advantages,
     flat_params,
     hessian_vector_product,
     set_flat_params,

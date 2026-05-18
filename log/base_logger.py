@@ -1,26 +1,19 @@
-import atexit
 import csv
 import json
 import os
 import os.path as osp
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import defaultdict
 from typing import (
-    Any,
     Callable,
-    DefaultDict,
-    Dict,
     Iterable,
-    List,
     Optional,
-    Tuple,
     Union,
 )
 
 import numpy as np
 import torch
-import yaml
 
 from log.logger_util import RunningAverage, colorize, convert_json
 
@@ -182,7 +175,6 @@ class BaseLogger(ABC):
 
     def restore_data(self) -> None:
         """Return the metadata from existing log. Not implemented for BaseLogger."""
-        pass
 
     def get_std(self, key: str) -> float:
         """Get the standard deviation of the queried data in storage.

@@ -10,6 +10,9 @@ __pycache__/
 *.svg
 *.out
 lbc.py
+.codex/
+.vscode/
+
 
 # Distribution / packaging
 .Python

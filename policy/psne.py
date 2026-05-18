@@ -59,6 +59,10 @@ class PSNE_Learner(Base):
         self.backtrack_coeff = backtrack_coeff
         self.nupdates = nupdates
 
+        # Adaptive noise scale (Plappert et al., 2017 — arXiv:1706.01905)
+        self.sigma = 0.1            # initial noise standard deviation
+        self.sigma_alpha = 1.01     # adaptation factor
+
         # trainable networks
         self.actor = actor
         self.sampled_actor = deepcopy(self.actor)
@@ -79,26 +83,24 @@ class PSNE_Learner(Base):
         self.steps += 1
 
     def sample_policy(self):
-        # Backtracking line search
+        """Perturb actor params: θ̃ = θ + N(0, σ²I), then adapt σ.
+
+        Implements the adaptive noise scaling from Plappert et al. (2017):
+        σ is increased (×α) when KL < δ and decreased (÷α) when KL ≥ δ,
+        ensuring the perturbation stays in a useful exploration regime.
+        """
         with torch.no_grad():
-            old_params = flat_params(self.actor)
-            epsilon = torch.randn_like(old_params)
+            clean_params = flat_params(self.actor)
+            epsilon = torch.randn_like(clean_params)
+            perturbed_params = clean_params + self.sigma * epsilon
+            set_flat_params(self.sampled_actor, perturbed_params)
 
-            # Backtracking line search
-            success = False
-            for i in range(self.backtrack_iters):
-                # we use 0.1 since epsilon is quite large
-                step_frac = 0.1**i
-                new_params = old_params - step_frac * epsilon
-                set_flat_params(self.sampled_actor, new_params)
-                kl = compute_kl(self.actor, self.sampled_actor, self.states)
-
-                if kl <= self.target_kl:
-                    success = True
-                    break
-
-            if not success:
-                set_flat_params(self.sampled_actor, old_params)
+            # Adapt σ based on realized KL divergence
+            kl = compute_kl(self.actor, self.sampled_actor, self.states)
+            if kl < self.target_kl:
+                self.sigma *= self.sigma_alpha   # noise too small → increase
+            else:
+                self.sigma /= self.sigma_alpha   # noise too large → decrease
 
     def forward(self, state: np.ndarray, deterministic: bool = False, **kwargs):
         state = self.preprocess_state(state)
@@ -115,8 +117,8 @@ class PSNE_Learner(Base):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
 
-        # Collect initial data with the base policy
-        batch, sample_time = sampler.collect_samples(env, self.actor, seed)
+        # Collect data with the PERTURBED policy for exploration (paper §3)
+        batch, sample_time = sampler.collect_samples(env, self.sampled_actor, seed)
 
         t0 = time.time()
 
@@ -128,7 +130,6 @@ class PSNE_Learner(Base):
         rewards = self.preprocess_state(batch["rewards"])
         terminations = self.preprocess_state(batch["terminations"])
         truncations = self.preprocess_state(batch["truncations"])
-        old_logprobs = self.preprocess_state(batch["logprobs"])
 
         # self.record_state_visitations(states)
         timesteps = states.shape[0]
@@ -233,6 +234,7 @@ class PSNE_Learner(Base):
             f"{self.name}/analytics/klDivergence": kl.item(),
             f"{self.name}/analytics/avg_rewards": torch.mean(rewards).item(),
             f"{self.name}/analytics/target_kl": self.target_kl,
+            f"{self.name}/analytics/sigma": self.sigma,
             f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[0]["lr"],
             f"{self.name}/analytics/sample_time": sample_time,
             f"{self.name}/analytics/update_time": time.time() - t0,
@@ -247,7 +249,6 @@ class PSNE_Learner(Base):
         loss_dict.update(grad_dict)
 
         # Cleanup
-        del states, actions, rewards, terminations, old_logprobs
         self.eval()
 
         return {"loss_dict": loss_dict, "timesteps": timesteps}

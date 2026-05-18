@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic

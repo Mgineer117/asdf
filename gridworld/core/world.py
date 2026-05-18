@@ -3,7 +3,7 @@ from typing import TypeVar
 
 from numpy.typing import NDArray
 
-from gridworld.core.constants import COLORS, CTF_COLORS, MAZE_COLORS
+from gridworld.core.constants import COLORS, CTF_COLORS
 
 WorldT = TypeVar("WorldT", bound="World")
 
