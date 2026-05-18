@@ -470,9 +470,8 @@ class VectorizedSampler(Base):
 
         t_start = time.time()
 
-        if isinstance(policies, list):
-            policies = policies[0]
-        policy = policies
+        is_list = isinstance(policies, list)
+        policy_list = policies if is_list else [policies]
 
         # ── Create vectorized env ──────────────────────────────────────────
         _env_fn = self.env_fn
@@ -482,69 +481,77 @@ class VectorizedSampler(Base):
             return _init
 
         vec_env = AsyncVectorEnv([_make_env(i) for i in range(self.num_envs)])
+        batches = []
 
-        data = self.get_reset_data(self.batch_size)
-        step_count = 0
-        ep_steps = np.zeros(self.num_envs, dtype=int)
+        for p_idx, policy in enumerate(policy_list):
+            data = self.get_reset_data(self.batch_size)
+            step_count = 0
+            ep_steps = np.zeros(self.num_envs, dtype=int)
 
-        seeds = (
-            [seed + i for i in range(self.num_envs)]
-            if seed is not None
-            else None
-        )
-        raw_obs, _ = vec_env.reset(seed=seeds)  # (N, H, W)
+            seeds = (
+                [seed + i + p_idx * self.num_envs for i in range(self.num_envs)]
+                if seed is not None
+                else None
+            )
+            raw_obs, _ = vec_env.reset(seed=seeds)  # (N, H, W)
 
-        while step_count < self.batch_size:
-            # 1. Batch encode raw pixels → feature vectors
-            encoded = self._batch_encode(raw_obs)  # (N, encoder_dim)
+            while step_count < self.batch_size:
+                # 1. Batch encode raw pixels → feature vectors
+                encoded = self._batch_encode(raw_obs)  # (N, encoder_dim)
 
-            # 2. Batch policy forward
-            with torch.no_grad():
-                actions, metaData = policy(encoded, deterministic=deterministic)
-                actions_np = actions.cpu().numpy()  # (N, action_dim)
+                # 2. Batch policy forward
+                with torch.no_grad():
+                    actions, metaData = policy(encoded, deterministic=deterministic)
+                    actions_np = actions.cpu().numpy()  # (N, action_dim)
 
-            # 3. Convert to env actions
-            if self.is_discrete:
-                env_actions = np.argmax(actions_np, axis=-1)  # (N,) ints
-            else:
-                env_actions = actions_np
+                # 3. Convert to env actions
+                if self.is_discrete:
+                    env_actions = np.argmax(actions_np, axis=-1)  # (N,) ints
+                else:
+                    env_actions = actions_np
 
-            # 4. Step all envs in parallel
-            next_raw_obs, rewards, terms, truncs, infos = vec_env.step(env_actions)
-            ep_steps += 1
+                # 4. Step all envs in parallel
+                next_raw_obs, rewards, terms, truncs, infos = vec_env.step(env_actions)
+                ep_steps += 1
 
-            # 5. Enforce episode length
-            for i in range(self.num_envs):
-                if ep_steps[i] >= self.episode_len:
-                    truncs[i] = True
+                # 5. Enforce episode length
+                for i in range(self.num_envs):
+                    if ep_steps[i] >= self.episode_len:
+                        truncs[i] = True
 
-            # 6. Store transitions
-            n_to_store = min(self.num_envs, self.batch_size - step_count)
-            for i in range(n_to_store):
-                data["states"][step_count] = encoded[i]
-                data["actions"][step_count] = actions_np[i]
-                data["rewards"][step_count] = rewards[i]
-                data["terminations"][step_count] = float(terms[i])
-                data["truncations"][step_count] = float(truncs[i])
-                data["logprobs"][step_count] = (
-                    metaData["logprobs"][i].cpu().detach().numpy()
-                )
-                data["entropys"][step_count] = (
-                    metaData["entropy"][i].cpu().detach().numpy()
-                )
-                step_count += 1
+                # 6. Store transitions
+                n_to_store = min(self.num_envs, self.batch_size - step_count)
+                for i in range(n_to_store):
+                    data["states"][step_count] = encoded[i]
+                    data["actions"][step_count] = actions_np[i]
+                    data["rewards"][step_count] = rewards[i]
+                    data["terminations"][step_count] = float(terms[i])
+                    data["truncations"][step_count] = float(truncs[i])
+                    data["logprobs"][step_count] = (
+                        metaData["logprobs"][i].cpu().detach().numpy()
+                    )
+                    data["entropys"][step_count] = (
+                        metaData["entropy"][i].cpu().detach().numpy()
+                    )
+                    step_count += 1
 
-            # 7. Reset ep_steps for terminated/truncated envs
-            for i in range(self.num_envs):
-                if terms[i] or truncs[i]:
-                    ep_steps[i] = 0
+                # 7. Reset ep_steps for terminated/truncated envs
+                for i in range(self.num_envs):
+                    if terms[i] or truncs[i]:
+                        ep_steps[i] = 0
 
-            raw_obs = next_raw_obs
+                raw_obs = next_raw_obs
+            
+            batches.append(data)
 
         vec_env.close()
 
         t_end = time.time()
-        return data, t_end - t_start
+        
+        if is_list:
+            return batches, t_end - t_start
+        else:
+            return batches[0], t_end - t_start
 
 
 def build_sampler(args, verbose: bool = True, **overrides):
