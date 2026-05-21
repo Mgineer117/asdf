@@ -6,7 +6,7 @@
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=07:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --output=logs/amidar_psne.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu

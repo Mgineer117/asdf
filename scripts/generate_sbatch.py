@@ -8,7 +8,7 @@ sbatch_template = """#!/bin/bash
 #SBATCH --account=huytran1-ic
 #SBATCH --partition={partition}
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time={time_limit}
@@ -34,13 +34,13 @@ conda activate irpo
 # Create logs directory if missing
 mkdir -p logs
 
-# === Run 10 seeds (0-9) in parallel on 1 GPU / Node === #
-for SEED in {{0..9}}; do
+# === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
+for SEED in {{0..4}}; do
     python3 main.py --project NEW_IRPO --env-name {env} --algo-name {algo} --seed $SEED --gpu-idx 0 &
     sleep 3
 done
 
-# === Wait for all 10 runs to finish ===
+# === Wait for all 5 runs to finish ===
 wait
 """
 
@@ -49,12 +49,8 @@ os.makedirs("scripts", exist_ok=True)
 # Generate sbatch files
 for env in envs:
     for algo in algos:
-        if algo in ["irpo", "maml", "hrl"]:
-            partition = "csl"
-            time_limit = "4-00:00:00"
-        else:
-            partition = "eng-research-gpu"
-            time_limit = "2-00:00:00"
+        partition = "csl"
+        time_limit = "7-00:00:00"
             
         filepath = f"scripts/{env}_{algo}.sbatch"
         content = sbatch_template.format(env=env, algo=algo, partition=partition, time_limit=time_limit)
@@ -72,7 +68,7 @@ mkdir -p logs
 echo "========================================================="
 echo " Submitting all 14 Experiment Jobs to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
-echo " running 10 seeds (0-9) in parallel on 1 GPU."
+echo " running 5 seeds (0-4) in parallel on 1 GPU."
 echo "========================================================="
 
 """
