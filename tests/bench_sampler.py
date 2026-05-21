@@ -1,5 +1,5 @@
 """
-Benchmark: mp.Process (fork) serial encoding vs VectorizedSampler batched encoding.
+Benchmark: mp.Process (fork) serial encoding vs batch encoding approaches.
 
 This script simulates the Atari training pipeline to measure overhead from:
   1. Process spawn/join
@@ -9,9 +9,8 @@ This script simulates the Atari training pipeline to measure overhead from:
 
 Run:  python tests/bench_sampler.py
 
-Key insight: On the SLURM cluster (CUDA GPU), fork-based workers CANNOT use
-the GPU for encoding because CUDA can't be re-initialized after fork().
-So fork workers are stuck on CPU, while the vectorized sampler can use the GPU.
+Key insight: OnlineSampler now uses approach [2] for Atari (batch encoding on main thread)
+and approach [1] for non-Atari envs (per-frame encoding in workers).
 """
 
 import time
@@ -67,7 +66,7 @@ def _encode_single(encoder, raw_frame: np.ndarray) -> np.ndarray:
     return feat.squeeze(0).numpy()
 
 
-# ── Batched encode (like VectorizedSampler._batch_encode) ─────────────────
+# ── Batched encode (like OnlineSampler._batch_encode_states) ─────────────────
 def _encode_batch(encoder, raw_frames: np.ndarray, device="cpu") -> np.ndarray:
     t = torch.from_numpy(raw_frames.astype(np.float32) / 255.0)
     t = t.unsqueeze(1).to(device)  # (N, 1, H, W)
@@ -386,12 +385,12 @@ if __name__ == "__main__":
     print()
 
     print("KEY TAKEAWAY:")
-    print("  On your Mac (MPS), fork may appear competitive because:")
-    print("    • 4 workers run env.step() in TRUE parallel (separate processes)")
-    print("    • MPS has high overhead for small batches")
-    print()
-    print("  On the SLURM cluster (CUDA), fork LOSES because:")
-    print("    • Workers cannot use CUDA after fork — stuck on CPU for encoding")
-    print("    • Queue serializes large numpy arrays (O(batch × encoder_dim))")
-    print("    • VectorizedSampler batches encoding on GPU: 1 call for N frames")
+    print("  OnlineSampler now uses approach [2] (batch encoding) for all Atari environments:")
+    print("    • Workers collect raw frames (no per-frame encoding)")
+    print("    • Main thread batch-encodes on GPU/device for efficiency")
     print("    • Expected speedup on CUDA: 5-20× for the encoding step")
+    print()
+    print("  For non-Atari (Identity encoder):")
+    print("    • Workers encode per-frame (approach [1])")
+    print("    • No batch encoding overhead")
+

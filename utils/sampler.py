@@ -283,7 +283,7 @@ class OnlineSampler(Base):
     ) -> np.ndarray:
         """
         Batch encode raw states using the policy's feature extractor on GPU/device.
-        Implements approach [2]: main thread batches encoding for efficiency.
+        Implements approach [2]: JIT-traced encoder for batch efficiency.
         """
         if not raw_states:
             return np.zeros((0,), dtype=np.float32)
@@ -312,6 +312,12 @@ class OnlineSampler(Base):
         
         encoded = np.zeros((total_steps, encoder_dim), dtype=np.float32)
 
+        # JIT-trace the encoder for faster batch encoding
+        dummy_input = torch.zeros(1, 1, *raw_array.shape[1:], device=device)
+        encoder.eval()
+        with torch.no_grad():
+            traced_encoder = torch.jit.trace(encoder, dummy_input)
+
         # Batch encode with stride of 256
         batch_size = 256
         for start_idx in range(0, total_steps, batch_size):
@@ -324,9 +330,9 @@ class OnlineSampler(Base):
                 batch_tensor = batch_tensor.unsqueeze(1)  # (batch, 1, H, W)
             batch_tensor = batch_tensor / 255.0  # Normalize to [0, 1]
 
-            # Encode batch
+            # Encode batch using JIT-traced encoder
             with torch.no_grad():
-                encoded_batch = encoder(batch_tensor)
+                encoded_batch = traced_encoder(batch_tensor)
 
             encoded[start_idx:end_idx] = encoded_batch.cpu().numpy()
 
@@ -515,193 +521,26 @@ class HLSampler(OnlineSampler):
             return data
 
 
-class VectorizedSampler(Base):
-    """Sampler using gymnasium AsyncVectorEnv + batched GPU encoding.
-
-    Designed for Atari environments where a pretrained image encoder converts
-    raw pixel observations into compact feature vectors.  Instead of spawning
-    mp.Process workers that each run a serial encode→policy→step loop, this
-    sampler:
-
-    1. Steps N environments in parallel via AsyncVectorEnv (C-level ALE,
-       no Python GIL contention).
-    2. Batch-encodes the N raw pixel frames in a single GPU forward pass.
-    3. Batch-forwards through the policy to select actions for all N envs.
-
-    This eliminates per-frame CPU encoding, mp.Queue serialization overhead,
-    and process spawn/join costs.
-    """
-
-    def __init__(
-        self,
-        env_fn: callable,
-        encoder: nn.Module,
-        is_discrete: bool,
-        device: str = "cpu",
-        num_envs: int = 4,
-        **kwargs,
-    ) -> None:
-        super().__init__(**kwargs)
-
-        self.env_fn = env_fn
-        self.device = device
-        self.encoder = encoder.to(self.device)
-        self.is_discrete = is_discrete
-        self.num_envs = num_envs
-
-        self.encoder.eval()
-
-        print("Sampling Parameters (VectorizedSampler):")
-        print(f"  Number of parallel envs: {self.num_envs}")
-        print(f"  Batch size: {self.batch_size}")
-        print(f"  Encoder device: {self.device}")
-
-    # ------------------------------------------------------------------
-    # Batch encoding
-    # ------------------------------------------------------------------
-
-    def _batch_encode(self, raw_obs: np.ndarray) -> np.ndarray:
-        """Encode (N, H, W) or (N, H, W, C) uint8 pixels → (N, encoder_dim)."""
-        if raw_obs.ndim == 3:  # grayscale (N, H, W)
-            t = torch.from_numpy(raw_obs.astype(np.float32) / 255.0)
-            t = t.unsqueeze(1)  # (N, 1, H, W)
-        elif raw_obs.ndim == 4:  # colour (N, H, W, C)
-            t = torch.from_numpy(raw_obs.astype(np.float32) / 255.0)
-            t = t.permute(0, 3, 1, 2)  # (N, C, H, W)
-        else:
-            raise ValueError(f"Unexpected raw_obs shape: {raw_obs.shape}")
-
-        with torch.no_grad():
-            encoded = self.encoder(t.to(self.device))  # (N, encoder_dim)
-        return encoded.cpu().numpy()
-
-    # ------------------------------------------------------------------
-    # Main collection loop
-    # ------------------------------------------------------------------
-
-    def collect_samples(
-        self,
-        env,
-        policies: list[nn.Module] | nn.Module,
-        seed: int | None = None,
-        deterministic: bool = False,
-    ):
-        """Collect a batch of transitions using vectorized envs + batched encoding.
-
-        The ``env`` argument is accepted for API compatibility with
-        ``OnlineSampler`` but is **ignored** — we use ``self.env_fn`` to
-        construct the internal ``AsyncVectorEnv``.
-        """
-        from gymnasium.vector import AsyncVectorEnv
-
-        t_start = time.time()
-
-        is_list = isinstance(policies, list)
-        policy_list = policies if is_list else [policies]
-
-        # ── Create vectorized env ──────────────────────────────────────────
-        _env_fn = self.env_fn
-        def _make_env(idx):
-            def _init():
-                return _env_fn()
-            return _init
-
-        vec_env = AsyncVectorEnv([_make_env(i) for i in range(self.num_envs)])
-        batches = []
-
-        for p_idx, policy in enumerate(policy_list):
-            data = self.get_reset_data(self.batch_size)
-            step_count = 0
-            ep_steps = np.zeros(self.num_envs, dtype=int)
-
-            seeds = (
-                [seed + i + p_idx * self.num_envs for i in range(self.num_envs)]
-                if seed is not None
-                else None
-            )
-            raw_obs, _ = vec_env.reset(seed=seeds)  # (N, H, W)
-
-            while step_count < self.batch_size:
-                # 1. Batch encode raw pixels → feature vectors
-                encoded = self._batch_encode(raw_obs)  # (N, encoder_dim)
-
-                # 2. Batch policy forward
-                with torch.no_grad():
-                    actions, metaData = policy(encoded, deterministic=deterministic)
-                    actions_np = actions.cpu().numpy()  # (N, action_dim)
-
-                # 3. Convert to env actions
-                if self.is_discrete:
-                    env_actions = np.argmax(actions_np, axis=-1)  # (N,) ints
-                else:
-                    env_actions = actions_np
-
-                # 4. Step all envs in parallel
-                next_raw_obs, rewards, terms, truncs, infos = vec_env.step(env_actions)
-                ep_steps += 1
-
-                # 5. Enforce episode length
-                for i in range(self.num_envs):
-                    if ep_steps[i] >= self.episode_len:
-                        truncs[i] = True
-
-                # 6. Store transitions
-                n_to_store = min(self.num_envs, self.batch_size - step_count)
-                for i in range(n_to_store):
-                    data["states"][step_count] = encoded[i]
-                    data["actions"][step_count] = actions_np[i]
-                    data["rewards"][step_count] = rewards[i]
-                    data["terminations"][step_count] = float(terms[i])
-                    data["truncations"][step_count] = float(truncs[i])
-                    data["logprobs"][step_count] = (
-                        metaData["logprobs"][i].cpu().detach().numpy()
-                    )
-                    data["entropys"][step_count] = (
-                        metaData["entropy"][i].cpu().detach().numpy()
-                    )
-                    step_count += 1
-
-                # 7. Reset ep_steps for terminated/truncated envs
-                for i in range(self.num_envs):
-                    if terms[i] or truncs[i]:
-                        ep_steps[i] = 0
-
-                raw_obs = next_raw_obs
-            
-            batches.append(data)
-
-        vec_env.close()
-
-        t_end = time.time()
-        
-        if is_list:
-            return batches, t_end - t_start
-        else:
-            return batches[0], t_end - t_start
 
 
 def build_sampler(args, verbose: bool = True, **overrides):
-    """Factory: choose VectorizedSampler for Atari, OnlineSampler otherwise.
-
-    ``overrides`` can supply e.g. ``batch_size=...`` to override ``args``.
+    """Build OnlineSampler with approach [2] batch encoding.
+    
+    OnlineSampler uses approach [2] (JIT-traced batch encoding on main thread):
+    - Workers collect raw states (no per-frame encoding)
+    - Main thread batch-encodes with stride=256 using JIT-traced encoder
+    - Auto-detects policies with CNN encoders vs Identity
     """
     common = dict(
         state_dim=args.state_dim,
         action_dim=args.action_dim,
         episode_len=args.episode_len,
         batch_size=overrides.get("batch_size", args.batch_size),
+        use_batch_encoding=True,  # Always use approach [2] batch encoding
     )
 
-    if getattr(args, "env_fn", None) is not None:
-        return VectorizedSampler(
-            env_fn=args.env_fn,
-            encoder=args.encoder,
-            is_discrete=args.is_discrete,
-            device=args.device,
-            **common,
-        )
-
     return OnlineSampler(verbose=verbose, **common)
+
 
 
 
