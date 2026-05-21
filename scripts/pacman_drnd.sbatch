@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=pacman_drnd
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=eng-research-gpu
+#SBATCH --partition=csl
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=2-00:00:00
+#SBATCH --time=07:00:00
 #SBATCH --output=logs/pacman_drnd.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
@@ -29,11 +29,11 @@ conda activate irpo
 # Create logs directory if missing
 mkdir -p logs
 
-# === Run 10 seeds (0-9) in parallel on 1 GPU / Node === #
-for SEED in {0..9}; do
+# === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
+for SEED in {0..4}; do
     python3 main.py --project NEW_IRPO --env-name pacman --algo-name drnd --seed $SEED --gpu-idx 0 &
     sleep 3
 done
 
-# === Wait for all 10 runs to finish ===
+# === Wait for all 5 runs to finish ===
 wait
