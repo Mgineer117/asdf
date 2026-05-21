@@ -314,10 +314,11 @@ if __name__ == "__main__":
 
     # ── [1.5] Fork + Batch ──
     print("─" * 70)
-    print("[2] mp.Process fork + batched encoding (CPU)")
+    print(f"[2] mp.Process fork + batched encoding ({device.upper()})")
     print("    (Shows overhead of passing large raw frames via mp.Queue)")
     print("─" * 70)
-    r1b = bench_fork_batch(encoder_cpu, TOTAL_STEPS, NUM_WORKERS, FRAME_SHAPE, device="cpu")
+    encoder_for_batch = encoder.to(device)
+    r1b = bench_fork_batch(encoder_for_batch, TOTAL_STEPS, NUM_WORKERS, FRAME_SHAPE, device=device)
     print(f"  Total time:          {r1b['total']:.3f}s")
     print(f"    ├─ Process spawn:  {r1b['spawn']:.3f}s")
     print(f"    ├─ Queue collect:  {r1b['collect']:.3f}s  (raw pixels)")
@@ -327,11 +328,12 @@ if __name__ == "__main__":
     print(f"  Steps/sec:           {sps1b:.0f}")
     print()
 
-    # ── [2] Vectorized CPU ──
+    # ── [2] Vectorized GPU ──
     print("─" * 70)
-    print("[3] Vectorized + batch encode (CPU only)")
+    print(f"[3] Vectorized + batch encode ({device.upper()})")
     print("─" * 70)
-    r2 = bench_vectorized(encoder_cpu, TOTAL_STEPS, NUM_WORKERS, FRAME_SHAPE, device="cpu")
+    encoder_for_vec = encoder.to(device)
+    r2 = bench_vectorized(encoder_for_vec, TOTAL_STEPS, NUM_WORKERS, FRAME_SHAPE, device=device)
     sps2 = r2["steps"] / r2["total"]
     print(f"  Total time:          {r2['total']:.3f}s")
     print(f"  Steps/sec:           {sps2:.0f}")
@@ -369,8 +371,8 @@ if __name__ == "__main__":
     print(f"  {'Method':<50} {'Steps/s':>8} {'Speedup':>8}")
     print(f"  {'─' * 50} {'─' * 8} {'─' * 8}")
     print(f"  {'[1] Fork + serial CPU encode (baseline)':<50} {sps1:>8.0f} {'1.0x':>8}")
-    print(f"  {'[2] Fork + batch encode (CPU)':<50} {sps1b:>8.0f} {sps1b/sps1:>7.1f}x")
-    print(f"  {'[3] Vectorized + batch CPU encode':<50} {sps2:>8.0f} {sps2/sps1:>7.1f}x")
+    print(f"  {'[2] Fork + batch encode (' + device.upper() + ')':<50} {sps1b:>8.0f} {sps1b/sps1:>7.1f}x")
+    print(f"  {'[3] Vectorized + batch ' + device.upper() + ' encode':<50} {sps2:>8.0f} {sps2/sps1:>7.1f}x")
     print(f"  {'[4] Vectorized + batch + JIT (CPU)':<50} {sps3:>8.0f} {sps3/sps1:>7.1f}x")
     if r4:
         print(f"  {'[5] Vectorized + batch + JIT (' + device.upper() + ')':<50} {sps4:>8.0f} {sps4/sps1:>7.1f}x")
