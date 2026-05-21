@@ -45,6 +45,7 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
 
     default_cfg = vars(args)
     sweep_metric_prefix = getattr(args, "sweep_metric_prefix", None)
+    wandb_mode = getattr(args, "wandb_mode", "online")
     logger = WandbLogger(
         config=default_cfg,
         project=args.project,
@@ -54,6 +55,7 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
         log_txt=True,
         is_sweep=is_sweep,
         sweep_metric_prefix=sweep_metric_prefix,
+        mode=wandb_mode,
     )
     logger.save_config(default_cfg, verbose=True)
 

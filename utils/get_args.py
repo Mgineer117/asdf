@@ -80,6 +80,13 @@ def get_args():
         default=None,
         help="A specific name for this individual run (often used to distinguish seeds within a group).",
     )
+    parser.add_argument(
+        "--wandb-mode",
+        type=str,
+        default="online",
+        choices=["online", "offline", "disabled"],
+        help="Set WandB logging mode: 'online' to log to WandB server, 'offline' to save locally, 'disabled' to turn off WandB.",
+    )
 
     # === ENVIRONMENT & ALGORITHM === #
     parser.add_argument(

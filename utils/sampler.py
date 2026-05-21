@@ -38,6 +38,23 @@ class Base:
         )
         return data
 
+    def get_raw_data(self, size: int):
+        """
+        Pre-allocate arrays for raw (unencoded) states collected by workers.
+        States stay as raw numpy arrays; encoding happens on main thread.
+        """
+        data = dict(
+            states=[],  # Raw states collected from workers (not pre-allocated)
+            next_states=[],
+            actions=np.zeros((size, self.action_dim), dtype=np.float32),
+            rewards=np.zeros((size, 1), dtype=np.float32),
+            terminations=np.zeros((size, 1), dtype=np.float32),
+            truncations=np.zeros((size, 1), dtype=np.float32),
+            logprobs=np.zeros((size, 1), dtype=np.float32),
+            entropys=np.zeros((size, 1), dtype=np.float32),
+        )
+        return data
+
 
 class OnlineSampler(Base):
     def __init__(
@@ -48,6 +65,7 @@ class OnlineSampler(Base):
         batch_size: int,
         num_workers: int = 4,
         verbose: bool = True,
+        use_batch_encoding: bool = True,
     ) -> None:
         super().__init__(
             state_dim=state_dim,
@@ -58,11 +76,13 @@ class OnlineSampler(Base):
 
         self.total_num_worker = num_workers
         self.worker_batch_size = ceil(batch_size / self.total_num_worker)
+        self.use_batch_encoding = use_batch_encoding
 
         if verbose:
             print("Sampling Parameters:")
             print(f"Total number of workers per policy: {self.total_num_worker}")
             print(f"Target samples per worker: {self.worker_batch_size}")
+            print(f"Batch encoding (approach [2]): {use_batch_encoding}")
 
         torch.set_num_threads(1)  # Avoid CPU oversubscription
 
@@ -76,6 +96,10 @@ class OnlineSampler(Base):
         """
         Collect samples in parallel for multiple policies.
         EACH policy gets self.total_num_worker processes.
+        
+        Automatically detects whether each policy has an encoder (CNN) or Identity.
+        - If encoder is not Identity: uses batch encoding (approach [2])
+        - If encoder is Identity: uses standard encoding
         """
         t_start = time.time()
         if not isinstance(policies, list):
@@ -87,6 +111,16 @@ class OnlineSampler(Base):
 
         # Determine original devices to restore later
         original_devices = [p.device for p in policies]
+
+        # Auto-detect if policies use encoders (for Atari) vs Identity (for other envs)
+        # Only enable batch encoding if the policy has a real encoder (not Identity)
+        policy_use_batch_encoding = []
+        for p in policies:
+            has_encoder = (
+                hasattr(p, "feature_extractor")
+                and not isinstance(p.feature_extractor, nn.Identity)
+            )
+            policy_use_batch_encoding.append(has_encoder and self.use_batch_encoding)
 
         # Move all policies to CPU for multiprocessing pickling
         for p in policies:
@@ -109,6 +143,7 @@ class OnlineSampler(Base):
         # ✅ Spawn total_num_worker for EACH policy
         for p_idx in range(num_policies):
             policy = policies[p_idx]
+            use_batch_encoding_for_policy = policy_use_batch_encoding[p_idx]
 
             for w_idx in range(workers_per_policy):
                 # Unique global ID for this specific worker-policy pair
@@ -124,6 +159,7 @@ class OnlineSampler(Base):
                     policy,
                     worker_seed,
                     deterministic,
+                    use_batch_encoding_for_policy,
                 )
                 p = mp.Process(target=self.collect_trajectory, args=args)
                 processes.append(p)
@@ -172,9 +208,29 @@ class OnlineSampler(Base):
 
             for key, val in wm.items():
                 if key in target_mem:
-                    target_mem[key] = np.concatenate((target_mem[key], val), axis=0)
+                    if isinstance(val, list):
+                        target_mem[key].extend(val)
+                    else:
+                        target_mem[key] = np.concatenate((target_mem[key], val), axis=0)
                 else:
                     target_mem[key] = val
+
+        # ✅ Batch encode states on main thread if needed (per-policy check)
+        if any(policy_use_batch_encoding):
+            for p_idx, policy_mem in enumerate(policy_memories):
+                if policy_use_batch_encoding[p_idx]:
+                    if "states" in policy_mem and isinstance(policy_mem["states"], list):
+                        policy = policies[p_idx]
+                        device = original_devices[p_idx]
+                        policy_mem["states"] = self._batch_encode_states(
+                            policy_mem["states"], policy, device
+                        )
+                        if "next_states" in policy_mem and isinstance(
+                            policy_mem["next_states"], list
+                        ):
+                            policy_mem["next_states"] = self._batch_encode_states(
+                                policy_mem["next_states"], policy, device
+                            )
 
         t_end = time.time()
 
@@ -200,11 +256,12 @@ class OnlineSampler(Base):
         policy: nn.Module,
         seed: int,
         deterministic: bool = False,
+        use_batch_encoding: bool = False,
     ):
         # Surface worker exceptions: without this wrapper the parent waits
         # 20 min on queue.get and the actual traceback is lost.
         try:
-            self._collect_trajectory_impl(pid, queue, env, policy, seed, deterministic)
+            self._collect_trajectory_impl(pid, queue, env, policy, seed, deterministic, use_batch_encoding)
         except BaseException as e:
             import sys
             import traceback
@@ -218,6 +275,63 @@ class OnlineSampler(Base):
             # is in the log.
             raise
 
+    def _batch_encode_states(
+        self,
+        raw_states: list,
+        policy: nn.Module,
+        device: torch.device,
+    ) -> np.ndarray:
+        """
+        Batch encode raw states using the policy's feature extractor on GPU/device.
+        Implements approach [2]: main thread batches encoding for efficiency.
+        """
+        if not raw_states:
+            return np.zeros((0,), dtype=np.float32)
+
+        # Stack raw states into a single numpy array
+        raw_array = np.array(raw_states, dtype=np.float32)
+        total_steps = len(raw_states)
+
+        # Move policy to device for encoding
+        policy.to_device(device)
+        
+        # Get the actual encoder output dimension
+        encoder = policy.feature_extractor
+        encoder_dim = getattr(encoder, "output_dim", None)
+        
+        # If output_dim is not available, infer it from a single forward pass
+        if encoder_dim is None:
+            test_state = raw_array[0:1]
+            test_tensor = torch.from_numpy(test_state).to(device)
+            if test_tensor.ndim == 3:  # (1, H, W)
+                test_tensor = test_tensor.unsqueeze(1)  # (1, 1, H, W)
+            test_tensor = test_tensor / 255.0
+            with torch.no_grad():
+                test_output = encoder(test_tensor)
+            encoder_dim = test_output.shape[-1]
+        
+        encoded = np.zeros((total_steps, encoder_dim), dtype=np.float32)
+
+        # Batch encode with stride of 256
+        batch_size = 256
+        for start_idx in range(0, total_steps, batch_size):
+            end_idx = min(start_idx + batch_size, total_steps)
+            batch = raw_array[start_idx:end_idx]
+
+            # Convert to tensor and normalize
+            batch_tensor = torch.from_numpy(batch).to(device)
+            if batch_tensor.ndim == 3:  # (batch, H, W)
+                batch_tensor = batch_tensor.unsqueeze(1)  # (batch, 1, H, W)
+            batch_tensor = batch_tensor / 255.0  # Normalize to [0, 1]
+
+            # Encode batch
+            with torch.no_grad():
+                encoded_batch = encoder(batch_tensor)
+
+            encoded[start_idx:end_idx] = encoded_batch.cpu().numpy()
+
+        return encoded
+
     def _collect_trajectory_impl(
         self,
         pid,
@@ -226,6 +340,7 @@ class OnlineSampler(Base):
         policy: nn.Module,
         seed: int,
         deterministic: bool = False,
+        use_batch_encoding: bool = False,
     ):
         # assign per-worker seed
         worker_seed = random.randint(0, 10000) + seed + pid
@@ -235,7 +350,12 @@ class OnlineSampler(Base):
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(worker_seed)
 
-        data = self.get_reset_data(self.worker_batch_size)
+        # Use raw data if batch encoding is enabled for this policy
+        if use_batch_encoding:
+            data = self.get_raw_data(self.worker_batch_size)
+        else:
+            data = self.get_reset_data(self.worker_batch_size)
+
         step_count = 0
         ep_step = 0
 
@@ -255,8 +375,14 @@ class OnlineSampler(Base):
 
             done = term or trunc
 
-            data["states"][step_count] = state
-            data["next_states"][step_count] = next_state
+            # For batch encoding mode, store raw states as lists
+            if use_batch_encoding:
+                data["states"].append(state)
+                data["next_states"].append(next_state)
+            else:
+                data["states"][step_count] = state
+                data["next_states"][step_count] = next_state
+
             data["actions"][step_count] = a
             data["rewards"][step_count] = rew
             data["terminations"][step_count] = term

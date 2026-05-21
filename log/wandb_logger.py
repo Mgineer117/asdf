@@ -20,6 +20,7 @@ class WandbLogger(BaseLogger):
         fps: int = 30,
         is_sweep: bool = False,
         sweep_metric_prefix: str | None = None,
+        mode: str = "online",
     ) -> None:
         super().__init__(log_dir, log_txt, name)
         self.fps = fps
@@ -32,20 +33,20 @@ class WandbLogger(BaseLogger):
         self._defined_metrics = False
 
         if not self.is_sweep:
-            self.wandb_run = (
-                wandb.init(
-                    project=project,
-                    group=group,
-                    name=name,
-                    id=str(uuid.uuid4()),
-                    resume="allow",
-                    config=config,  # type: ignore
-                    settings=wandb.Settings(init_timeout=120),
-                    mode="offline",
-                )
-                if not wandb.run
-                else wandb.run
+            # Always initialize a new wandb run with the specified mode
+            self.wandb_run = wandb.init(
+                project=project,
+                group=group,
+                name=name,
+                id=str(uuid.uuid4()),
+                resume="allow",
+                config=config,  # type: ignore
+                settings=wandb.Settings(init_timeout=120),
+                mode=mode,
+                reinit=True,  # Allow re-initialization
             )
+            if self.wandb_run:
+                print(f"[WandB] Initialized in '{mode}' mode - Project: {project}, Group: {group}")
         else:
             self.wandb_run = wandb.run
             if self.wandb_run is not None and self.sweep_metric_prefix:
@@ -77,8 +78,12 @@ class WandbLogger(BaseLogger):
 
     def write_without_reset(self, step: int) -> None:
         """Sending data to wandb without resetting the current stored stats."""
+        if self.wandb_run is None:
+            return
+            
         if not self.is_sweep:
-            wandb.log(self.stats_mean, step=int(step))
+            if self.stats_mean:
+                wandb.log(self.stats_mean, step=int(step))
         elif self.sweep_metric_prefix and self.wandb_run is not None:
             payload = self._prefixed(self.stats_mean)
             payload[f"{self.sweep_metric_prefix}/env_step"] = int(step)
