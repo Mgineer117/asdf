@@ -90,13 +90,15 @@ def get_args():
 
     # === ENVIRONMENT & ALGORITHM === #
     parser.add_argument(
-        "--env-name",
+        "--env",
+        dest="env_name",
         type=str,
         default="pointmaze-v4",
         help="The unique ID of the gymnasium/MuJoCo environment to execute (e.g., 'Ant-v4', 'pointmaze-v0').",
     )
     parser.add_argument(
-        "--algo-name",
+        "--algo",
+        dest="algo_name",
         type=str,
         default="irpo",
         help="The name of the reinforcement learning algorithm to use (e.g., 'ppo', 'irpo', 'trpo').",

@@ -31,7 +31,7 @@ mkdir -p logs
 
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {0..4}; do
-    python3 main.py --project NEW_IRPO --env-name amidar --algo-name maml --seed $SEED --gpu-idx 0 &
+    python3 main.py --project NEW_IRPO --env amidar --algo maml --seed $SEED --gpu-idx 0 &
     sleep 3
 done
 

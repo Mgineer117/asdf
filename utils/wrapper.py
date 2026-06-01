@@ -100,6 +100,30 @@ class ArcadeWrapper(gym.Wrapper):
                 dtype=np.float32,
             )
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if getattr(self, "_encoder", None) is not None:
+            import io
+            import torch
+            if isinstance(self._encoder, torch.jit.ScriptModule):
+                buffer = io.BytesIO()
+                torch.jit.save(self._encoder, buffer)
+                state["_encoder_bytes"] = buffer.getvalue()
+                state["_encoder"] = None
+        return state
+
+    def __setstate__(self, state):
+        import torch
+        import io
+        if "_encoder_bytes" in state:
+            buffer = io.BytesIO(state["_encoder_bytes"])
+            encoder = torch.jit.load(buffer, map_location=state.get("device", "cpu"))
+            if "observation_space" in state:
+                encoder.encoder_dim = state["observation_space"].shape[0]
+            state["_encoder"] = encoder
+            del state["_encoder_bytes"]
+        self.__dict__.update(state)
+
     # ------------------------------------------------------------------
 
     def _encode(self, obs: np.ndarray) -> np.ndarray:

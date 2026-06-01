@@ -30,6 +30,8 @@ EPI_LENGTH = {
     "fetchpusheasy": 100,  # longer horizon to compensate for smaller ranges
     "pacman": 1000,
     "amidar": 1000,
+    "bankheist": 1000,
+    "alien": 1000,
 }
 
 POS_IDX = {
@@ -46,6 +48,8 @@ POS_IDX = {
     "fetchpusheasy": [-6, -5, -4],
     "pacman": None,
     "amidar": None,
+    "bankheist": None,
+    "alien": None,
 }
 
 GOAL_IDX = {
@@ -62,6 +66,8 @@ GOAL_IDX = {
     "fetchpusheasy": [-3, -2, -1],
     "pacman": None,
     "amidar": None,
+    "bankheist": None,
+    "alien": None,
 }
 
 
