@@ -57,7 +57,7 @@ class IRPO_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.95,
-        anneal_kl: bool = True,
+        anneal_kl: bool = False,
         device: str = "cpu",
         vae_encoder=None,  # ConvVAEEncoder for Atari; trained jointly via VAE loss
         vae_lr: float = 3e-4,
@@ -387,7 +387,6 @@ class IRPO_Learner(Base):
             self._collapsed = False
         else:
             active_gains = self.perf_gains[active_indices]
-            # REVERSE SOFTMAX: Amplify low return option idx (Lower bound maximization)
             logits = active_gains
             # logits = -active_gains
             # weights = F.softmax(logits / temperature, dim=0)
@@ -557,58 +556,52 @@ class IRPO_Learner(Base):
                 gae=self.gae,
             )
 
-        # Critic Mini-batch Updates
-        batch_size = states.shape[0]
-        critic_epochs = 5  # Number of passes over the data
-        num_minibatches = 4  # Split data into 4 chunks per epoch
-        mb_size = max(1, batch_size // num_minibatches)
+        # Critic Updates: Average loss across full batch, then optimize
+        # This uses all data points while keeping gradient flow stable
+        critic_epochs = 5
 
         ext_critic = self.ext_critics[i]
         ext_optim = self.ext_critic_optim[i]
-        ext_losses = []
-
         int_critic = self.int_critics[i]
         int_optim = self.int_critic_optim[i]
+
+        ext_losses = []
         int_losses = []
 
-        # Loop over the dataset multiple times (epochs)
         for _ in range(critic_epochs):
-            # Shuffle the data at the start of each epoch for true SGD
-            perm = torch.randperm(batch_size)
+            # Compute average loss across all minibatches in full batch
+            def ext_loss_fn(s, _, r):
+                return self.critic_loss(ext_critic, s, r)
 
-            # Iterate through the dataset in mini-batches
-            for start_idx in range(0, batch_size, mb_size):
-                indices = perm[start_idx : start_idx + mb_size]
+            def int_loss_fn(s, _, r):
+                return self.critic_loss(int_critic, s, r)
 
-                # 1. Update Extrinsic Critic
-                ext_loss = self.critic_loss(
-                    ext_critic, states[indices], ext_returns[indices]
-                )
+            # Average extrinsic critic loss
+            from utils.rl import average_loss_across_minibatches
+            avg_ext_loss = average_loss_across_minibatches(
+                ext_loss_fn, states, None, ext_returns, self.grad_batch_size
+            )
 
-                ext_optim.zero_grad()
-                ext_loss.backward()
-                # nn.utils.clip_grad_norm_(ext_critic.parameters(), max_norm=0.5)
-                ext_optim.step()
+            ext_optim.zero_grad()
+            avg_ext_loss.backward()
+            ext_optim.step()
+            ext_losses.append(avg_ext_loss.item())
 
-                ext_losses.append(ext_loss.item())
+            # Average intrinsic critic loss
+            avg_int_loss = average_loss_across_minibatches(
+                int_loss_fn, states, None, int_returns, self.grad_batch_size
+            )
 
-                # 2. Update Intrinsic Critic
-                int_loss = self.critic_loss(
-                    int_critic, states[indices], int_returns[indices]
-                )
+            int_optim.zero_grad()
+            avg_int_loss.backward()
+            int_optim.step()
+            int_losses.append(avg_int_loss.item())
 
-                int_optim.zero_grad()
-                int_loss.backward()
-                # nn.utils.clip_grad_norm_(int_critic.parameters(), max_norm=0.5)
-                int_optim.step()
-
-                int_losses.append(int_loss.item())
-
-        # Average the accumulated losses for logging
+        # Average the losses for logging
         ext_critic_loss = sum(ext_losses) / len(ext_losses)
         int_critic_loss = sum(int_losses) / len(int_losses)
 
-        # 3. Update Actor (Exploratory Policy)
+        # 3. Update Actor (Exploratory Policy) — Averaged gradients across minibatches
         actor_clone = deepcopy(actor)
 
         # Select advantage based on whether we are in the 'exploratory' (int)
@@ -616,28 +609,21 @@ class IRPO_Learner(Base):
         advantages = ext_advantages if flag else int_advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        # Subsample for the create_graph=True gradient to reduce peak memory.
-        # create_graph stores every intermediate activation; a minibatch makes
-        # this proportionally smaller while keeping the gradient direction sound.
-        B = states.shape[0]
-        if B > self.grad_batch_size:
-            idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
-            g_states = states[idx]
-            g_actions = actions[idx]
-            g_adv = advantages[idx]
-            g_adv = (g_adv - g_adv.mean()) / (g_adv.std() + 1e-8)
-        else:
-            g_states, g_actions, g_adv = states, actions, advantages
+        # Average gradients across minibatches: uses full batch info but keeps
+        # memory low by only storing one create_graph=True graph at a time.
+        from utils.rl import average_gradients_across_minibatches
 
-        actor_loss = self.actor_loss(actor, g_states, g_actions, g_adv)
+        def actor_loss_fn(s, a, adv):
+            return self.actor_loss(actor, s, a, adv)
 
-        # Calculate Gradients with create_graph=True
-        gradients = torch.autograd.grad(
-            actor_loss, tuple(actor.parameters()), create_graph=True, allow_unused=True
-        )
-        gradients = tuple(
-            g if g is not None else torch.zeros_like(p)
-            for p, g in zip(actor.parameters(), gradients)
+        gradients = average_gradients_across_minibatches(
+            actor,
+            actor_loss_fn,
+            states,
+            actions,
+            advantages,
+            self.grad_batch_size,
+            create_graph=True,
         )
         # gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
@@ -652,8 +638,12 @@ class IRPO_Learner(Base):
         # # Update Int Reward Generator (if it has learnable parameters, e.g., DRND)
         # self.int_reward_fn.learn(states, next_states, i, source)
 
+        # Compute actor loss on full batch for logging
+        with torch.no_grad():
+            actor_loss_log = self.actor_loss(actor, states, actions, advantages)
+
         loss_dict = {
-            f"{self.name}/loss/actor_loss": actor_loss.item(),
+            f"{self.name}/loss/actor_loss": actor_loss_log.item(),
             f"{self.name}/loss/ext_critic_loss": ext_critic_loss,
             f"{self.name}/loss/int_critic_loss": int_critic_loss,
         }

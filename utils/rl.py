@@ -1,6 +1,76 @@
 import torch
 
 
+def average_gradients_across_minibatches(
+    model, loss_fn, data_states, data_actions, data_advantages, minibatch_size, create_graph=False
+):
+    """
+    Compute gradients by splitting data into minibatches, accumulating gradients,
+    then averaging. Useful for reducing estimation error while keeping memory low.
+
+    Args:
+        model: nn.Module to compute gradients for
+        loss_fn: callable that takes (states, actions, advantages) and returns scalar loss
+        data_states, data_actions, data_advantages: full batch tensors
+        minibatch_size: size of each minibatch
+        create_graph: if True, allow 2nd derivatives (for IRPO meta-gradients)
+
+    Returns:
+        Tuple of averaged gradient tensors, one per parameter
+    """
+    B = data_states.shape[0]
+    all_gradients = []
+
+    for start_idx in range(0, B, minibatch_size):
+        end_idx = min(start_idx + minibatch_size, B)
+        mb_states = data_states[start_idx:end_idx]
+        mb_actions = data_actions[start_idx:end_idx]
+        mb_advantages = data_advantages[start_idx:end_idx]
+
+        loss = loss_fn(mb_states, mb_actions, mb_advantages)
+        grads = torch.autograd.grad(
+            loss, model.parameters(), create_graph=create_graph, allow_unused=True
+        )
+        grads = tuple(
+            g if g is not None else torch.zeros_like(p)
+            for p, g in zip(model.parameters(), grads)
+        )
+        all_gradients.append(grads)
+        del loss, grads
+
+    # Average gradients across all minibatches
+    num_batches = len(all_gradients)
+    averaged_grads = tuple(
+        sum(all_gradients[i][param_idx] for i in range(num_batches)) / num_batches
+        for param_idx in range(len(all_gradients[0]))
+    )
+    return averaged_grads
+
+
+def average_loss_across_minibatches(loss_fn, data_states, data_actions, data_returns, minibatch_size):
+    """
+    Compute average loss across minibatches. Useful for critic updates to use
+    all data points while keeping batch size manageable.
+
+    Returns:
+        Scalar tensor (average loss across all minibatches)
+    """
+    B = data_states.shape[0]
+    all_losses = []
+
+    for start_idx in range(0, B, minibatch_size):
+        end_idx = min(start_idx + minibatch_size, B)
+        mb_states = data_states[start_idx:end_idx]
+        mb_actions = data_actions[start_idx:end_idx]
+        mb_returns = data_returns[start_idx:end_idx]
+
+        loss = loss_fn(mb_states, mb_actions, mb_returns)
+        all_losses.append(loss.detach())
+
+    avg_loss = sum(all_losses) / len(all_losses)
+    return avg_loss
+
+
 def flat_params(model):
     return torch.cat([p.data.view(-1) for p in model.parameters()])
 

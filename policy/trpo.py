@@ -36,6 +36,7 @@ class TRPO_Learner(Base):
         gae: float = 0.9,
         pos_idx: list = None,
         goal_idx: list = None,
+        grad_batch_size: int = 512,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -53,6 +54,7 @@ class TRPO_Learner(Base):
         self.backtrack_iters = backtrack_iters
         self.backtrack_coeff = backtrack_coeff
         self.nupdates = nupdates
+        self.grad_batch_size = grad_batch_size
 
         self.init_target_kl = target_kl
         self.target_kl = target_kl
@@ -180,32 +182,33 @@ class TRPO_Learner(Base):
                 set_flat_params(self.actor, old_params)
 
         # === critic update === #
-        batch_size = states.size(0)
+        # Use averaged loss across full batch for better gradient estimates
+        from utils.rl import average_loss_across_minibatches
+
         critic_epochs = 5
-        num_minibatches = 4
-        minibatch_size = max(1, batch_size // num_minibatches)
         grad_dict_list = []
+
         for _ in range(critic_epochs):
-            perm = torch.randperm(batch_size)
-            for start_idx in range(0, batch_size, minibatch_size):
-                indices = perm[start_idx : start_idx + minibatch_size]
-                mb_states = states[indices]
-                mb_returns = returns[indices]
+            def critic_loss_fn(s, _, r):
+                return self.critic_loss(s, r)
 
-                value_loss = self.critic_loss(mb_states, mb_returns)
-                loss = value_loss
+            avg_loss = average_loss_across_minibatches(
+                critic_loss_fn, states, None, returns, self.grad_batch_size
+            )
+            value_loss = avg_loss.item()
+            loss = avg_loss
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
-                grad_dict = self.compute_gradient_norm(
-                    [self.critic],
-                    ["critic"],
-                    dir=f"{self.name}",
-                    device=self.device,
-                )
-                grad_dict_list.append(grad_dict)
-                self.optimizer.step()
+            self.optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+            grad_dict = self.compute_gradient_norm(
+                [self.critic],
+                ["critic"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
+            grad_dict_list.append(grad_dict)
+            self.optimizer.step()
         grad_dict = self.average_dict_values(grad_dict_list)
 
         # Logging
