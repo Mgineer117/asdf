@@ -32,7 +32,8 @@
       "Bash(python -m py_compile policy/layers/building_blocks.py utils/sampler.py utils/get_envs.py algorithms/irpo.py policy/irpo.py)",
       "Bash(python -m py_compile utils/intrinsic_rewards.py)",
       "Bash(python -m py_compile extractor/extractor.py utils/intrinsic_rewards.py)",
-      "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py utils/intrinsic_rewards.py train_models.py)"
+      "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py utils/intrinsic_rewards.py train_models.py)",
+      "Bash(python -m py_compile policy/layers/ppo_networks.py algorithms/irpo.py policy/irpo.py)"
     ]
   }
 }

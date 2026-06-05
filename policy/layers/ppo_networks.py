@@ -21,9 +21,13 @@ class PPO_Actor(Base):
         pos_idx: list | None = None,
         goal_idx: list | None = None,
         use_relative_goal: bool = False,
+        detach_cnn: bool = False,
         device=torch.device("cpu"),
     ):
         super().__init__(device=device)
+        # When True, CNN output is detached before the MLP so IRPO gradients
+        # (create_graph=True) only store the small MLP graph, not the CNN graph.
+        self.detach_cnn = detach_cnn
 
         self.hidden_dim = hidden_dim
         self.action_dim = np.prod(action_dim)
@@ -129,6 +133,8 @@ class PPO_Actor(Base):
 
         # Extract features (passes through CNN if image, or Identity if vector)
         features = self.feature_extractor(state)
+        if self.detach_cnn:
+            features = features.detach()
         if self.use_relative_goal and state.ndim == 2:
             relative_goal = state[:, self.goal_idx] - state[:, self.pos_idx]
             features = torch.cat((features, relative_goal), dim=-1)

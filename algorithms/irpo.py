@@ -108,12 +108,19 @@ class IRPO_Algorithm(nn.Module):
     def define_base_policy(self):
         # === Define policy === #
         activation = build_activation(getattr(self.args, "actor_activation", None))
+        # For Atari: CNN is trained by VAE only — IRPO must NOT backprop through it.
+        # detach_cnn=True makes the actor detach CNN features before the MLP so
+        # create_graph=True in IRPO only stores the small MLP graph (fixes OOM).
+        env_name_base = self.args.env_name.split("-")[0]
+        is_atari = env_name_base in _ATARI_ENVS
+
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
             activation=activation,
+            detach_cnn=is_atari,
             device=self.args.device,
         )
         critic = PPO_Critic(
@@ -123,11 +130,9 @@ class IRPO_Algorithm(nn.Module):
             device=self.args.device,
         )
 
-        # For Atari, replace the actor's plain CNN with a VAE encoder so the
-        # CNN is jointly trained via reconstruction loss and the IRPO gradient.
-        env_name_base = self.args.env_name.split("-")[0]
+        # Replace actor's plain CNN with ConvVAEEncoder (trained via VAE loss).
         vae_encoder = None
-        if env_name_base in _ATARI_ENVS:
+        if is_atari:
             H, W = self.args.state_dim  # raw grayscale (H, W)
             latent_dim = getattr(self.args, "encoder_dim", 256)
             vae_encoder = ConvVAEEncoder(
@@ -135,7 +140,7 @@ class IRPO_Algorithm(nn.Module):
                 latent_dim=latent_dim,
                 device=self.args.device,
             )
-            # Swap out the plain CNN; MLP head is compatible (same output dim).
+            # Swap out the plain CNN; MLP head is compatible (same output dim=256).
             actor.feature_extractor = vae_encoder
 
         shared_kwargs = dict(

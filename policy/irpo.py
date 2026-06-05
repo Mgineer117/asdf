@@ -126,7 +126,9 @@ class IRPO_Learner(Base):
         self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
 
-        # VAE encoder for Atari: CNN is trained simultaneously via reconstruction loss
+        # VAE encoder for Atari: trained independently from IRPO (CNN is detached
+        # inside the actor via detach_cnn=True).  Updated every 5 IRPO steps on
+        # a random minibatch so it runs at a slower temporal scale than IRPO.
         self.vae_encoder = vae_encoder
         self.vae_lr_init = vae_lr
         self.vae_optim = (
@@ -134,7 +136,7 @@ class IRPO_Learner(Base):
             if vae_encoder is not None
             else None
         )
-        # Encoder save path (set once from intrinsic_reward_fn.args in first learn() call)
+        self._vae_step_counter = 0   # counts learn() calls; VAE runs every 5
         self._vae_save_path: str | None = None
 
     def anneal_target_kl(self, learning_progress: float):
@@ -240,23 +242,28 @@ class IRPO_Learner(Base):
 
         total_timesteps += init_batch["states"].shape[0]
 
-        # VAE representation update (Atari only): train CNN via reconstruction loss
-        # on the same on-policy pixel batch before the IRPO exploratory phase.
+        # VAE update — independent from IRPO, runs every 5 IRPO steps on a
+        # random minibatch.  The CNN is detached inside the actor so IRPO's
+        # create_graph=True never touches the CNN graph (avoids OOM).
+        self._vae_step_counter += 1
         vae_loss_val = 0.0
-        if self.vae_encoder is not None:
+        if self.vae_encoder is not None and self._vae_step_counter % 5 == 0:
             # Linearly anneal VAE LR from vae_lr_init down to 10 % of it.
             annealed_lr = self.vae_lr_init * max(0.1, 1.0 - learning_progress)
             for pg in self.vae_optim.param_groups:
                 pg["lr"] = annealed_lr
 
-            raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W) float32
-            vae_loss = self.vae_encoder.vae_loss(raw_states)
+            # Random minibatch from the on-policy buffer
+            raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W)
+            mb_size = min(256, raw_states.shape[0])
+            idx = torch.randperm(raw_states.shape[0], device=raw_states.device)[:mb_size]
+            vae_loss = self.vae_encoder.vae_loss(raw_states[idx])
             self.vae_optim.zero_grad()
             vae_loss.backward()
             self.vae_optim.step()
             vae_loss_val = vae_loss.item()
 
-            # Save encoder so subsequent ALLO training and IRPO+ALLO runs can load it.
+            # Persist encoder for ALLO training and IRPO+ALLO runs.
             if self._vae_save_path is None:
                 import os
                 _args = self.intrinsic_reward_fn.args
@@ -265,7 +272,6 @@ class IRPO_Learner(Base):
                 _dir = os.path.join("model", _env, "encoder")
                 os.makedirs(_dir, exist_ok=True)
                 self._vae_save_path = os.path.join(_dir, f"{_seed}.pth")
-            import torch
             torch.save(self.vae_encoder.state_dict(), self._vae_save_path)
 
         loss_dict_list = []
