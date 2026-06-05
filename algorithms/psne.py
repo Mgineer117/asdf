@@ -104,7 +104,7 @@ class PSNE_Algorithm(nn.Module):
             gae=self.args.gae,
             pos_idx=pos_idx,
             goal_idx=goal_idx,
-            grad_batch_size=getattr(self.args, "minibatch_size", 512),
+            grad_batch_size=getattr(self.args, "minibatch_size", 256),
             device=self.args.device,
         )
 

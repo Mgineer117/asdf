@@ -37,7 +37,8 @@
       "Bash(python -m py_compile policy/irpo.py)",
       "Bash(python -m py_compile utils/rl.py)",
       "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py)",
-      "Bash(python -m py_compile utils/rl.py policy/irpo.py policy/trpo.py policy/psne.py algorithms/trpo.py algorithms/psne.py)"
+      "Bash(python -m py_compile utils/rl.py policy/irpo.py policy/trpo.py policy/psne.py algorithms/trpo.py algorithms/psne.py)",
+      "Bash(python -m py_compile algorithms/irpo.py algorithms/trpo.py algorithms/psne.py policy/irpo.py)"
     ]
   }
 }
