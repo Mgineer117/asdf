@@ -135,8 +135,6 @@ def get_env(args):
 
         env = AntMazeWrapper(env, example_map, episode_len, args.seed, cell_size=4.0)
     elif env_name in {"pacman", "amidar", "bankheist", "alien"}:
-        from extractor.base.image_encoder import pretrain_image_encoder
-
         atari_env_id = {
             "pacman": "ALE/Pacman-v5",
             "amidar": "ALE/Amidar-v5",
@@ -150,18 +148,10 @@ def get_env(args):
             max_episode_steps=episode_len,
             obs_type="grayscale",
         )
-        # Pretrain (or load) the CNN encoder on raw frames, then encode at the
-        # wrapper level so the batch stores compact vectors, not pixel arrays.
-        _encoder = pretrain_image_encoder(
-            _raw_env,
-            seed=args.seed,
-            encoder_dim=getattr(args, "encoder_dim", 256),
-            device=getattr(args, "device", "cpu"),
-        )
-        env = ArcadeWrapper(_raw_env, encoder=_encoder, device=getattr(args, "device", "cpu"))
-
-        # Note: OnlineSampler will detect encoders from the policy's feature_extractor
-        # and automatically use batch encoding (approach [2]) for Atari environments
+        # No pre-trained encoder: policies carry their own CNN internally.
+        # Baselines (PPO, DRND) use a standard CNN+MLP actor/critic.
+        # IRPO trains a shared CNN via VAE loss alongside the IRPO objective.
+        env = ArcadeWrapper(_raw_env)
     elif env_name == "ant":
         env = gym.make(
             "Ant-v5",
@@ -196,12 +186,6 @@ def get_env(args):
     args.goal_idx = GOAL_IDX[env_name]
     args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
-    # Arcade observations are already encoded into a flat feature vector by
-    # ArcadeWrapper, so ALLO should consume the full vector rather than a
-    # hand-picked positional subset.
-    if env_name in {"pacman", "amidar", "bankheist", "alien"}:
-        args.pos_idx = list(range(env.observation_space.shape[0]))
-
     _goal_conditioned_envs = {
         "fourroomsG", "mazeG", "pointmazeG",
         "antmazeG", "fetchreach", "fetchpush", "fetchpusheasy",
@@ -219,7 +203,7 @@ def get_env(args):
         )
         args.action_dim = env.action_space.shape[0]
     elif env_name in ["pacman", "amidar", "bankheist", "alien"]:
-        # observation_space.shape is (encoder_dim,) after ArcadeWrapper encoding
+        # observation_space.shape is raw grayscale (H, W); CNN lives inside the policy
         args.state_dim = env.observation_space.shape
         args.action_dim = env.action_space.n
     elif env_name in ["ant", "walker", "halfcheetah", "hopper"]:

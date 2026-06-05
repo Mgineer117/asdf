@@ -83,9 +83,48 @@ class AtariFeatureNet(nn.Module):
         )
 
     def forward(self, x, deterministic=False):
+        # Accept (B, H, W) grayscale or (B, 1, H, W) — normalise to [0, 1]
+        if x.ndim == 3:
+            x = x.unsqueeze(1)
+        if x.max() > 1.0:
+            x = x / 255.0
         feat = self.cnn(x)
         feat = self.mlp(feat)
         return feat, {}
+
+
+class EncoderWrappedNetwork(nn.Module):
+    """
+    Wraps a frozen ConvVAEEncoder with an ALLO MLP extractor.
+
+    When used as the ALLO network for Atari:
+    - encoder : ConvVAEEncoder (frozen, maps raw pixels → latent vector)
+    - network : NeuralNet MLP  (trainable, maps latent → ALLO eigenvectors)
+
+    This lets ALLO train on the same feature space the policy uses, without
+    re-training the CNN.
+    """
+
+    def __init__(self, encoder: nn.Module, network: nn.Module):
+        super().__init__()
+        self.encoder = encoder
+        self.encoder.requires_grad_(False)  # frozen — only network trains
+        self.network = network
+
+    @property
+    def feature_dim(self):
+        return self.network.feature_dim
+
+    def forward(self, x, deterministic=False):
+        # x : (B, H, W) raw pixels or (B, 1, H, W) already formatted
+        if x.ndim == 3:
+            x = x.unsqueeze(1)
+        if x.max() > 1.0:
+            x = x / 255.0
+        with torch.no_grad():
+            z = self.encoder(x)          # (B, latent_dim)
+        features, infos = self.network(z, deterministic=deterministic)
+        return features, infos
 
 
 class BaseIntRewardFunctions(nn.Module):
@@ -393,6 +432,8 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
 
         self.num_trials = 2_000
         self.use_diff = kwargs.get("use_diff", True)
+        # Keep a local copy so define_reward_model / forward can check image vs vector
+        self.input_shape = self.args.state_dim
 
         self.define_reward_model()
         self.define_eigenvectors()
@@ -402,8 +443,23 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
     ):
         states, next_states = self.preprocess_inputs(states, next_states)
 
-        states = states[:, self.args.pos_idx]
-        next_states = next_states[:, self.args.pos_idx]
+        is_image = isinstance(self.input_shape, (tuple, list)) and len(self.input_shape) >= 2
+
+        if is_image:
+            # Grayscale (B, H, W) → (B, 1, H, W); RGB (B, H, W, C) → (B, C, H, W)
+            if len(self.input_shape) == 2 and states.ndim == 3:
+                states = states.unsqueeze(1)
+                next_states = next_states.unsqueeze(1)
+            elif len(self.input_shape) == 3 and states.ndim == 4 and states.shape[-1] == self.input_shape[-1]:
+                states = states.permute(0, 3, 1, 2)
+                next_states = next_states.permute(0, 3, 1, 2)
+
+            if states.max() > 1.0:
+                states = states.float() / 255.0
+                next_states = next_states.float() / 255.0
+        else:
+            states = states[:, self.args.pos_idx]
+            next_states = next_states[:, self.args.pos_idx]
 
         with torch.no_grad():
             if self.use_diff:
@@ -449,22 +505,68 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             os.makedirs(f"model/{model_env_name}")
 
         # === CREATE FEATURE EXTRACTOR === #
-        feature_network = NeuralNet(
-            state_dim=len(self.args.pos_idx),
-            feature_dim=self.args.feature_dim,
-            encoder_fc_dim=[512, 512, 512, 512],
-            activation=nn.LeakyReLU(),
-        )
+        if isinstance(self.input_shape, (tuple, list)) and len(self.input_shape) in (2, 3):
+            # Image state (grayscale (H,W) or RGB (H,W,C)).
+            # Prefer a pre-trained VAE encoder if one exists for this seed — ALLO
+            # will then train an MLP on the latent space so both the policy and
+            # the intrinsic reward share the same representation.
+            if len(self.input_shape) == 2:
+                chw_shape = (1, self.input_shape[0], self.input_shape[1])
+            else:
+                chw_shape = (self.input_shape[2], self.input_shape[0], self.input_shape[1])
+
+            encoder_path = os.path.join(
+                "model", model_env_name, "encoder", f"{self.args.seed}.pth"
+            )
+            if os.path.exists(encoder_path):
+                from policy.layers.building_blocks import ConvVAEEncoder
+                latent_dim = getattr(self.args, "encoder_dim", 256)
+                pixel_encoder = ConvVAEEncoder(
+                    input_shape=chw_shape,
+                    latent_dim=latent_dim,
+                    device=self.args.device,
+                )
+                pixel_encoder.load_state_dict(
+                    torch.load(encoder_path, map_location=self.args.device)
+                )
+                pixel_encoder.eval()
+                mlp_net = NeuralNet(
+                    state_dim=latent_dim,
+                    feature_dim=self.args.feature_dim,
+                    encoder_fc_dim=[512, 512, 512, 512],
+                    activation=nn.LeakyReLU(),
+                )
+                feature_network = EncoderWrappedNetwork(pixel_encoder, mlp_net)
+                print(
+                    f"[ALLO] Loaded VAE encoder from '{encoder_path}' — "
+                    f"ALLO trains on latent features (dim={latent_dim})."
+                )
+            else:
+                feature_network = AtariFeatureNet(
+                    chw_shape=chw_shape,
+                    feature_dim=self.args.feature_dim,
+                    device=self.args.device,
+                )
+            extractor_pos_idx = None
+        else:
+            # Vector state: use the original MLP extractor
+            feature_network = NeuralNet(
+                state_dim=len(self.args.pos_idx),
+                feature_dim=self.args.feature_dim,
+                encoder_fc_dim=[512, 512, 512, 512],
+                activation=nn.LeakyReLU(),
+            )
+            extractor_pos_idx = self.args.pos_idx
 
         # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
         extractor = ALLO(
             network=feature_network,
-            positional_indices=self.args.pos_idx,
+            positional_indices=extractor_pos_idx,
             extractor_lr=self.args.extractor_lr,
             epochs=self.args.extractor_epochs,
             batch_size=1024,
-            lr_barrier_coeff=self.args.lr_barrier_coeff,  # ALLO uses 0.01 lr_barrier_coeff
-            discount=self.args.discount_sampling_factor,  # ALLO uses 0.99 discount
+            lr_barrier_coeff=self.args.lr_barrier_coeff,
+            discount=self.args.discount_sampling_factor,
             device=self.args.device,
         )
 

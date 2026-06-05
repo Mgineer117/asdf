@@ -1,6 +1,9 @@
+import os
+
 import torch.nn as nn
 
 from policy.irpo import NUM_GOALS, IRPO_G_Learner, IRPO_Learner
+from policy.layers.building_blocks import ConvVAEEncoder
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.functions import build_activation
@@ -12,6 +15,8 @@ from utils.intrinsic_rewards import (
     RandomIntRewardFunctionsG,
 )
 from utils.sampler import build_sampler
+
+_ATARI_ENVS = {"pacman", "amidar", "bankheist", "alien"}
 
 
 class IRPO_Algorithm(nn.Module):
@@ -25,6 +30,22 @@ class IRPO_Algorithm(nn.Module):
 
         mode = getattr(args, "kernel_mode", "cosine")
         self.goal_conditioned = getattr(args, "is_goal_conditioned", False)
+
+        # Safeguard: ALLO on Atari requires a pre-saved VAE encoder so it can
+        # train on consistent encoded features.  Run IRPO first (any int_reward_type)
+        # to produce model/<env>/encoder/<seed>.pth, then run train_models.py.
+        env_name_base = args.env_name.split("-")[0]
+        if self.args.int_reward_type == "allo" and env_name_base in _ATARI_ENVS:
+            encoder_path = os.path.join(
+                "model", env_name_base, "encoder", f"{args.seed}.pth"
+            )
+            if not os.path.exists(encoder_path):
+                raise FileNotFoundError(
+                    f"ALLO on Atari requires a pre-trained VAE encoder at "
+                    f"'{encoder_path}'.  Run IRPO (any int_reward_type) first "
+                    f"to train and save the encoder, then run train_models.py "
+                    f"to train the ALLO model."
+                )
 
         if self.args.int_reward_type == "allo":
             if self.goal_conditioned:
@@ -102,6 +123,21 @@ class IRPO_Algorithm(nn.Module):
             device=self.args.device,
         )
 
+        # For Atari, replace the actor's plain CNN with a VAE encoder so the
+        # CNN is jointly trained via reconstruction loss and the IRPO gradient.
+        env_name_base = self.args.env_name.split("-")[0]
+        vae_encoder = None
+        if env_name_base in _ATARI_ENVS:
+            H, W = self.args.state_dim  # raw grayscale (H, W)
+            latent_dim = getattr(self.args, "encoder_dim", 256)
+            vae_encoder = ConvVAEEncoder(
+                input_shape=(1, H, W),
+                latent_dim=latent_dim,
+                device=self.args.device,
+            )
+            # Swap out the plain CNN; MLP head is compatible (same output dim).
+            actor.feature_extractor = vae_encoder
+
         shared_kwargs = dict(
             actor=actor,
             critic=critic,
@@ -130,15 +166,10 @@ class IRPO_Algorithm(nn.Module):
         if use_g_learner:
             self.policy = IRPO_G_Learner(env_name=self.args.env_name, **shared_kwargs)
         else:
-            irpo_type = getattr(self.args, "irpo_type", "irpo")
-            learner_cls = IRPO_Learner
-
-            extra_kwargs = {}
-
-            self.policy = learner_cls(
+            self.policy = IRPO_Learner(
                 aggregation_method=self.args.aggregation_method,
+                vae_encoder=vae_encoder,
                 **shared_kwargs,
-                **extra_kwargs,
             )
 
         if hasattr(self.env, "get_grid"):

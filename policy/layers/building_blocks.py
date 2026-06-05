@@ -137,3 +137,109 @@ class CNN(nn.Module):
         x = self.cnn(x)
         x = self.linear(x)
         return x
+
+
+class ConvVAEEncoder(nn.Module):
+    """
+    CNN encoder with VAE heads for jointly learning representations and RL.
+
+    Used by IRPO on Atari: the CNN is trained simultaneously via VAE reconstruction
+    loss and via the IRPO meta-gradient.
+
+    forward(x) → mu (deterministic latent), used as features by the policy.
+    vae_loss(x) → VAE loss (reconstruction + KL) on raw pixel inputs, used for
+                  the separate representation-learning update.
+
+    input_shape: (C, H, W) in CHW format.
+    output_dim: latent_dim, compatible with CNN.output_dim for the MLP head.
+    """
+
+    def __init__(
+        self,
+        input_shape: tuple,
+        latent_dim: int = 256,
+        device=torch.device("cpu"),
+    ):
+        super().__init__()
+        self.input_shape = input_shape
+        self.latent_dim = latent_dim
+        self.output_dim = latent_dim
+
+        C = input_shape[0]
+        self.cnn = nn.Sequential(
+            nn.Conv2d(C, 32, kernel_size=8, stride=4, padding=0),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+
+        with torch.no_grad():
+            dummy = torch.zeros(1, *input_shape)
+            n_flatten = self.cnn(dummy).shape[1]
+            # Spatial shape before flatten (for decoder)
+            conv_only = nn.Sequential(*list(self.cnn.children())[:-1])
+            self._spatial_shape = tuple(conv_only(dummy).shape[1:])  # (C', H', W')
+
+        self.mu_head = nn.Linear(n_flatten, latent_dim)
+        self.logvar_head = nn.Linear(n_flatten, latent_dim)
+
+        # Decoder mirrors the encoder for reconstruction loss
+        Cs, Hs, Ws = self._spatial_shape
+        self.decoder_project = nn.Linear(latent_dim, Cs * Hs * Ws)
+        self.decoder_deconv = nn.Sequential(
+            nn.ConvTranspose2d(Cs, 32, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, C, kernel_size=8, stride=4),
+            nn.Sigmoid(),
+        )
+
+        gain = nn.init.calculate_gain("relu")
+        for module in self.cnn.modules():
+            if isinstance(module, (nn.Conv2d, nn.Linear)):
+                nn.init.orthogonal_(module.weight, gain=gain)
+                module.bias.data.fill_(0.0)
+
+        self.to(device)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: (B, C, H, W) already preprocessed (channel added, normalized to [0,1]).
+        Returns mu latent (B, latent_dim) for policy inference.
+        """
+        features = self.cnn(x)
+        return self.mu_head(features)
+
+    def vae_loss(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: raw pixel tensor (B, H, W) or (B, C, H, W), values in [0, 255] or [0, 1].
+        Returns scalar VAE loss (reconstruction + beta*KL).
+        """
+        import torch.nn.functional as F
+
+        # Normalize and add channel if needed
+        if x.ndim == 3:
+            x = x.unsqueeze(1)
+        if x.max() > 1.0:
+            x = x / 255.0
+
+        features = self.cnn(x)
+        mu = self.mu_head(features)
+        logvar = self.logvar_head(features).clamp(-5, 2)
+
+        std = torch.exp(0.5 * logvar)
+        z = mu + std * torch.randn_like(std)
+
+        Cs, Hs, Ws = self._spatial_shape
+        proj = self.decoder_project(z).view(-1, Cs, Hs, Ws)
+        recon = self.decoder_deconv(proj)
+        recon = F.interpolate(recon, size=self.input_shape[1:], mode="bilinear", align_corners=False)
+
+        recon_loss = F.mse_loss(recon, x)
+        kl_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=-1).mean()
+
+        return recon_loss + 1e-3 * kl_loss

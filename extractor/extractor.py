@@ -107,7 +107,9 @@ class ALLO(Base):
     def forward(self, states, deterministic: bool = False):
         if isinstance(states, np.ndarray):
             states = torch.from_numpy(states).to(self.dtype).to(self.device)
-        if len(states.shape) == 1 or len(states.shape) == 3:
+        # Only add a batch dimension for an un-batched 1-D vector state.
+        # Image batches are already (B, H, W) or (B, C, H, W) — don't unsqueeze.
+        if states.ndim == 1:
             states = states.unsqueeze(0)
 
         features, infos = self.network(states, deterministic=deterministic)
@@ -324,7 +326,9 @@ class ALLO(Base):
         s1 = torch.stack(s1_list).to(device)
         s2 = torch.stack(s2_list).to(device)
 
-        return s1[:, self.positional_indices], s2[:, self.positional_indices]
+        if self.positional_indices is not None:
+            return s1[:, self.positional_indices], s2[:, self.positional_indices]
+        return s1.to(device), s2.to(device)
 
     def sample_steps_from_batch(
         self, batch: dict, batch_size: int, device: torch.device
@@ -363,7 +367,9 @@ class ALLO(Base):
             np.array(sampled_states), dtype=torch.float32, device=device
         )
 
-        return sampled_states_tensor[:, self.positional_indices]
+        if self.positional_indices is not None:
+            return sampled_states_tensor[:, self.positional_indices]
+        return sampled_states_tensor
 
     def get_grad_weight_norm(self):
         grad_dict = self.compute_gradient_norm(

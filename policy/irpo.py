@@ -59,6 +59,8 @@ class IRPO_Learner(Base):
         gae: float = 0.95,
         anneal_kl: bool = True,
         device: str = "cpu",
+        vae_encoder=None,  # ConvVAEEncoder for Atari; trained jointly via VAE loss
+        vae_lr: float = 3e-4,
     ):
         super().__init__(device=device)
 
@@ -123,6 +125,17 @@ class IRPO_Learner(Base):
 
         self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
+
+        # VAE encoder for Atari: CNN is trained simultaneously via reconstruction loss
+        self.vae_encoder = vae_encoder
+        self.vae_lr_init = vae_lr
+        self.vae_optim = (
+            torch.optim.Adam(vae_encoder.parameters(), lr=vae_lr)
+            if vae_encoder is not None
+            else None
+        )
+        # Encoder save path (set once from intrinsic_reward_fn.args in first learn() call)
+        self._vae_save_path: str | None = None
 
     def anneal_target_kl(self, learning_progress: float):
         # Optional: Anneal target KL over time (e.g., linearly decay)
@@ -226,6 +239,34 @@ class IRPO_Learner(Base):
         # self.actor.record_state_visitations(init_batch["states"], alpha=1.0)
 
         total_timesteps += init_batch["states"].shape[0]
+
+        # VAE representation update (Atari only): train CNN via reconstruction loss
+        # on the same on-policy pixel batch before the IRPO exploratory phase.
+        vae_loss_val = 0.0
+        if self.vae_encoder is not None:
+            # Linearly anneal VAE LR from vae_lr_init down to 10 % of it.
+            annealed_lr = self.vae_lr_init * max(0.1, 1.0 - learning_progress)
+            for pg in self.vae_optim.param_groups:
+                pg["lr"] = annealed_lr
+
+            raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W) float32
+            vae_loss = self.vae_encoder.vae_loss(raw_states)
+            self.vae_optim.zero_grad()
+            vae_loss.backward()
+            self.vae_optim.step()
+            vae_loss_val = vae_loss.item()
+
+            # Save encoder so subsequent ALLO training and IRPO+ALLO runs can load it.
+            if self._vae_save_path is None:
+                import os
+                _args = self.intrinsic_reward_fn.args
+                _env = _args.env_name.split("-")[0]
+                _seed = _args.seed
+                _dir = os.path.join("model", _env, "encoder")
+                os.makedirs(_dir, exist_ok=True)
+                self._vae_save_path = os.path.join(_dir, f"{_seed}.pth")
+            import torch
+            torch.save(self.vae_encoder.state_dict(), self._vae_save_path)
 
         loss_dict_list = []
         # Cache the latest exploratory-rollout batches keyed by option index so
@@ -368,6 +409,9 @@ class IRPO_Learner(Base):
         loss_dict[f"{self.name}/analytics/max_ext_returns"] = (
             self.perf_gains.max().item()
         )
+        if vae_loss_val:
+            loss_dict[f"{self.name}/loss/vae_loss"] = vae_loss_val
+            loss_dict[f"{self.name}/loss/vae_lr"] = self.vae_optim.param_groups[0]["lr"]
         loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
             self.wall_clock_time / 3600.0
         )
