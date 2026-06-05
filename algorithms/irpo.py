@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from policy.irpo import NUM_GOALS, IRPO_G_Learner, IRPO_Learner
-from policy.layers.building_blocks import MLP, ConvVAEEncoder
+from policy.layers.building_blocks import CNN, MLP, ConvVAEEncoder
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.functions import build_activation
@@ -35,20 +35,20 @@ class IRPO_Algorithm(nn.Module):
         mode = getattr(args, "kernel_mode", "cosine")
         self.goal_conditioned = getattr(args, "is_goal_conditioned", False)
 
-        # Safeguard: ALLO on Atari requires a pre-saved VAE encoder so it can
-        # train on consistent encoded features.  Run IRPO first (any int_reward_type)
-        # to produce model/<env>/encoder/<seed>.pth, then run train_models.py.
+        # Safeguard: ALLO on Atari trains its own CNN encoder (no VAE) first; the
+        # IRPO policy then loads that encoder FROZEN.  So the ALLO encoder must
+        # already exist — run train_models.py (int_reward_type=allo) beforehand.
         env_name_base = args.env_name.split("-")[0]
         if self.args.int_reward_type == "allo" and env_name_base in _ATARI_ENVS:
             encoder_path = os.path.join(
-                "model", env_name_base, "encoder", f"{args.seed}.pth"
+                "model", env_name_base, "allo_encoder", f"{args.seed}.pth"
             )
             if not os.path.exists(encoder_path):
                 raise FileNotFoundError(
-                    f"ALLO on Atari requires a pre-trained VAE encoder at "
-                    f"'{encoder_path}'.  Run IRPO (any int_reward_type) first "
-                    f"to train and save the encoder, then run train_models.py "
-                    f"to train the ALLO model."
+                    f"ALLO on Atari requires a CNN encoder trained by ALLO at "
+                    f"'{encoder_path}'.  Run train_models.py "
+                    f"(int_reward_type=allo) first to train ALLO and export its "
+                    f"encoder, then run IRPO with int_reward_type=allo."
                 )
 
         if self.args.int_reward_type == "allo":
@@ -138,45 +138,77 @@ class IRPO_Algorithm(nn.Module):
             device=self.args.device,
         )
 
-        # Build the shared VAE encoder for Atari, initialized from pre-trained
-        # weights when available (kept trainable for joint fine-tuning).
+        # Build the shared Atari visual encoder. The encoder source and whether it
+        # is fine-tuned depend on int_reward_type:
+        #   random : pretrain a FRESH VAE every run (no disk load), then keep
+        #            fine-tuning it jointly via the VAE loss (train_vae=True).
+        #   allo   : load the CNN encoder ALLO trained (no VAE) and use it FROZEN
+        #            (train_vae=False); IRPO never updates these weights.
+        # latent_dim must match PPO_Actor's CNN feature dim (256) so the MLP head
+        # stays compatible.
         vae_encoder = None
+        train_vae = True
         if is_atari:
             H, W = self.args.state_dim  # raw grayscale (H, W)
-            # latent_dim must match PPO_Actor's CNN feature dim (256) so the MLP
-            # head stays compatible.
             latent_dim = 256
-            vae_encoder = ConvVAEEncoder(
-                input_shape=(1, H, W),
-                latent_dim=latent_dim,
-                device=self.args.device,
-            )
 
-            # Initialize from a pre-trained encoder when present (recommended via
-            # pretrain_vae.py). If missing, warn and start from scratch — joint VAE
-            # fine-tuning will still learn the representation, just more slowly.
-            pretrain_path = os.path.join(
-                "model", env_name_base, "encoder", f"{self.args.seed}.pth"
-            )
-            os.makedirs(os.path.dirname(pretrain_path), exist_ok=True)
-            if os.path.exists(pretrain_path):
-                vae_encoder.load_state_dict(
-                    torch.load(pretrain_path, map_location=self.args.device)
+            if self.args.int_reward_type == "allo":
+                # Frozen ALLO-trained CNN encoder (existence guaranteed by the
+                # __init__ safeguard).
+                encoder = CNN(
+                    input_shape=(1, H, W),
+                    features_dim=latent_dim,
+                    initialization="default",
+                    device=self.args.device,
                 )
-                print(f"[IRPO] Initialized VAE encoder from pre-trained {pretrain_path}")
-            else:
+                allo_encoder_path = os.path.join(
+                    "model", env_name_base, "allo_encoder", f"{self.args.seed}.pth"
+                )
+                encoder.load_state_dict(
+                    torch.load(allo_encoder_path, map_location=self.args.device)
+                )
+                # Frozen in effect WITHOUT requires_grad_(False): the IRPO
+                # gradient code calls autograd.grad(..., actor.parameters()),
+                # which errors on params that don't require grad. The encoder is
+                # never updated anyway — detach_cnn=True zeroes its policy/value
+                # gradients, train_vae=False means no VAE optimizer, and its
+                # params are excluded from the critic optimizers.
+                vae_encoder = encoder
+                train_vae = False
                 print(
-                    f"[IRPO] No pre-trained encoder at '{pretrain_path}'. "
-                    f"Starting from scratch and fine-tuning via VAE loss.\n"
-                    f"       (Recommended: run `python pretrain_vae.py "
-                    f"--env {env_name_base} --seed {self.args.seed}` first.)"
+                    f"[IRPO] Loaded FROZEN ALLO encoder from {allo_encoder_path}"
                 )
+            else:
+                # Fresh VAE, pretrained in-process every run, then joint-tuned.
+                vae_encoder = ConvVAEEncoder(
+                    input_shape=(1, H, W),
+                    latent_dim=latent_dim,
+                    device=self.args.device,
+                )
+                if self.args.int_reward_type == "random":
+                    from pretrain_vae import train_vae_encoder
+
+                    epochs = int(getattr(self.args, "vae_pretrain_epochs", 50))
+                    samples = int(getattr(self.args, "vae_pretrain_samples", 100000))
+                    batch = int(getattr(self.args, "vae_pretrain_batch_size", 256))
+                    print(
+                        f"[IRPO] Pretraining a fresh VAE encoder for "
+                        f"int_reward_type=random ({epochs} epochs, {samples} samples)."
+                    )
+                    train_vae_encoder(
+                        vae_encoder,
+                        env=self.env,
+                        num_epochs=epochs,
+                        batch_size=batch,
+                        num_samples=samples,
+                        device=self.args.device,
+                    )
+                train_vae = True
 
             # Share the SAME encoder as the feature extractor for both the actor
             # and the critic. The critic's MLP head is rebuilt to consume the
             # encoder's latent_dim (instead of its own 512-d CNN), so the whole
-            # learner holds exactly ONE CNN. The encoder stays trainable so the
-            # VAE optimizer can fine-tune it.
+            # learner holds exactly ONE CNN.
             actor.feature_extractor = vae_encoder
             critic.feature_extractor = vae_encoder
             critic.model = MLP(
@@ -220,7 +252,9 @@ class IRPO_Algorithm(nn.Module):
             self.policy = IRPO_Learner(
                 aggregation_method=self.args.aggregation_method,
                 vae_encoder=vae_encoder,
-                train_vae=True,  # pre-trained init + joint VAE fine-tuning; shared CNN
+                # random: joint VAE fine-tuning of a freshly pretrained encoder.
+                # allo: frozen ALLO-trained CNN (no VAE loss).
+                train_vae=train_vae,
                 **shared_kwargs,
             )
 

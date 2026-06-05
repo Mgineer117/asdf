@@ -1,18 +1,15 @@
 """
 Train the ALLO intrinsic-reward model for each seed.
 
-Prerequisite (Atari only)
---------------------------
-Before running this script, run IRPO on the target environment (any
-int_reward_type) so that the VAE encoder is trained and saved at:
-    model/<env>/encoder/<seed>.pth
+Atari workflow
+--------------
+Run this script FIRST (before IRPO with int_reward_type=allo). ALLO trains its
+own CNN-augmented network end-to-end (AtariFeatureNet, no VAE loss) and exports
+the trained CNN as the frozen policy encoder at:
+    model/<env>/allo_encoder/<seed>.pth
 
-When the encoder file is found, ALLOIntRewardFunctions automatically loads it
-and trains the ALLO MLP on the shared latent space.  If no encoder is found it
-falls back to training the built-in AtariFeatureNet.
-
-The pixel encoder is intentionally NOT trained here — it is trained jointly
-with IRPO via the VAE loss in policy/irpo.py.
+IRPO (int_reward_type=allo) then loads that encoder FROZEN, so the policy and the
+intrinsic reward share the same ALLO-learned visual representation.
 """
 
 import datetime
@@ -60,8 +57,8 @@ if __name__ == "__main__":
         args.algo_name = "irpo"
         args.int_reward_type = "allo"
 
-        # ALLOIntRewardFunctions loads the VAE encoder (if present) and trains
-        # only the ALLO extractor — no pixel encoder pretraining here.
+        # ALLOIntRewardFunctions trains the AtariFeatureNet (CNN+MLP, no VAE loss)
+        # and exports its CNN to model/<env>/allo_encoder/<seed>.pth for IRPO.
         irf = ALLOIntRewardFunctions(
             logger=logger, writer=writer, args=args, init_timesteps=current_timesteps
         )

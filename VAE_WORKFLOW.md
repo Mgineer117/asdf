@@ -1,17 +1,33 @@
-# VAE Pre-training + IRPO Fine-tuning Workflow
+# Atari Encoder Workflow (random vs allo)
 
-This document describes the two-stage workflow for training a VAE encoder on Atari environments.
+How the IRPO policy's visual encoder is obtained depends on `int_reward_type`.
 
-## Overview
+## int_reward_type = random
 
-**Stage 1 (Optional)**: Pre-train VAE on random policy samples
-- Fast, deterministic training on diverse random trajectories
-- Creates `model/<env>/encoder/<seed>.pth`
+The encoder is a `ConvVAEEncoder` (256-d latent) that is:
+1. **Pretrained FRESH at the start of every IRPO run** (in-process) on random-policy
+   rollouts — it does NOT load any saved encoder from disk.
+2. **Jointly fine-tuned** during IRPO via the VAE reconstruction loss
+   (`train_vae=True`), while policy/value gradients are detached from it.
 
-**Stage 2**: Fine-tune VAE + Train IRPO
-- IRPO automatically loads pre-trained encoder (if exists)
-- Continues fine-tuning VAE via reconstruction loss
-- Trains policy via IRPO with random intrinsic reward
+Controlled by (optional) args, read via `getattr`:
+`vae_pretrain_epochs` (50), `vae_pretrain_samples` (100000), `vae_pretrain_batch_size` (256).
+
+## int_reward_type = allo
+
+The encoder is the CNN that **ALLO trains** (no VAE loss), used FROZEN by IRPO:
+1. Run `train_models.py` (int_reward_type=allo) FIRST. ALLO trains its
+   `AtariFeatureNet` (CNN + MLP) end-to-end and exports the CNN to
+   `model/<env>/allo_encoder/<seed>.pth`.
+2. Run IRPO (int_reward_type=allo). It loads that CNN and uses it as the frozen
+   shared policy encoder (`train_vae=False`; the CNN is never updated). The policy
+   and the intrinsic reward therefore share the same ALLO-learned representation.
+
+> Note: `pretrain_vae.py` and the `*_pretrain_*` sbatch scripts (Stage-1 below) are
+> now only relevant to the standalone/legacy path — `random` no longer loads their
+> output. They remain for ad-hoc encoder pretraining.
+
+## Legacy two-stage notes (standalone pretrain script)
 
 ## Why Two Stages?
 

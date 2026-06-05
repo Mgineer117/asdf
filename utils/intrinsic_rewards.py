@@ -54,28 +54,39 @@ def _apply_kernel(phi_s: torch.Tensor, phi_g: torch.Tensor, mode: str) -> torch.
         raise ValueError(f"Unknown kernel mode '{mode}'. Choose from {KERNEL_MODES}.")
 
 
+# Canonical Atari visual-encoder width. The ALLO CNN, the IRPO policy CNN, and
+# the VAE latent all use this so the encoder ALLO trains can be dropped into the
+# policy (and vice-versa) without rebuilding MLP heads.
+ATARI_ENCODER_DIM = 256
+
+
 class AtariFeatureNet(nn.Module):
     """
     A wrapper network for image states that combines the CNN and MLP.
     Returns (features, None) to perfectly match the expected output format of NeuralNet.
+
+    `self.cnn` is the reusable visual encoder: ALLO trains it end-to-end (no VAE
+    loss) and its weights are saved as the FROZEN encoder the IRPO policy loads.
     """
 
-    def __init__(self, chw_shape, feature_dim, device):
+    def __init__(self, chw_shape, feature_dim, device, cnn_features_dim=ATARI_ENCODER_DIM):
         super().__init__()
 
         self.feature_dim = feature_dim
+        self.cnn_features_dim = cnn_features_dim
 
-        # 1. Extract 512-dim spatial features
+        # 1. Visual encoder — shared (frozen) with the IRPO policy, so its width
+        #    must match the policy CNN feature dim (ATARI_ENCODER_DIM).
         self.cnn = CNN(
             input_shape=chw_shape,
-            features_dim=512,
+            features_dim=cnn_features_dim,
             initialization="default",
             device=device,
         )
 
-        # 2. Project down to the required feature_dim for the intrinsic reward
+        # 2. Project the encoder features down to the ALLO eigenvector feature_dim.
         self.mlp = MLP(
-            input_dim=512,
+            input_dim=cnn_features_dim,
             hidden_dims=[512, 512, 512],
             output_dim=feature_dim,
             activation=nn.Tanh(),
@@ -505,48 +516,25 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             os.makedirs(f"model/{model_env_name}")
 
         # === CREATE FEATURE EXTRACTOR === #
+        # Tracks the CNN visual encoder for image envs so it can be saved as the
+        # frozen encoder the IRPO policy loads (None for vector envs).
+        self._allo_pixel_encoder = None
         if isinstance(self.input_shape, (tuple, list)) and len(self.input_shape) in (2, 3):
             # Image state (grayscale (H,W) or RGB (H,W,C)).
-            # Prefer a pre-trained VAE encoder if one exists for this seed — ALLO
-            # will then train an MLP on the latent space so both the policy and
-            # the intrinsic reward share the same representation.
+            # ALLO trains its own CNN-augmented network end-to-end (NO VAE loss);
+            # the trained CNN is then exported as the FROZEN encoder for the IRPO
+            # policy, so both share the same visual representation.
             if len(self.input_shape) == 2:
                 chw_shape = (1, self.input_shape[0], self.input_shape[1])
             else:
                 chw_shape = (self.input_shape[2], self.input_shape[0], self.input_shape[1])
 
-            encoder_path = os.path.join(
-                "model", model_env_name, "encoder", f"{self.args.seed}.pth"
+            feature_network = AtariFeatureNet(
+                chw_shape=chw_shape,
+                feature_dim=self.args.feature_dim,
+                device=self.args.device,
             )
-            if os.path.exists(encoder_path):
-                from policy.layers.building_blocks import ConvVAEEncoder
-                latent_dim = getattr(self.args, "encoder_dim", 256)
-                pixel_encoder = ConvVAEEncoder(
-                    input_shape=chw_shape,
-                    latent_dim=latent_dim,
-                    device=self.args.device,
-                )
-                pixel_encoder.load_state_dict(
-                    torch.load(encoder_path, map_location=self.args.device)
-                )
-                pixel_encoder.eval()
-                mlp_net = NeuralNet(
-                    state_dim=latent_dim,
-                    feature_dim=self.args.feature_dim,
-                    encoder_fc_dim=[512, 512, 512, 512],
-                    activation=nn.LeakyReLU(),
-                )
-                feature_network = EncoderWrappedNetwork(pixel_encoder, mlp_net)
-                print(
-                    f"[ALLO] Loaded VAE encoder from '{encoder_path}' — "
-                    f"ALLO trains on latent features (dim={latent_dim})."
-                )
-            else:
-                feature_network = AtariFeatureNet(
-                    chw_shape=chw_shape,
-                    feature_dim=self.args.feature_dim,
-                    device=self.args.device,
-                )
+            self._allo_pixel_encoder = feature_network.cnn
             extractor_pos_idx = None
         else:
             # Vector state: use the original MLP extractor
@@ -690,6 +678,17 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             torch.save(extractor.state_dict(), model_path)
 
         self.extractor = extractor
+
+        # Export the ALLO-trained CNN as the FROZEN visual encoder for the IRPO
+        # policy (image envs only). Saved unconditionally — even when ALLO was
+        # already fully trained and just loaded — so the encoder file always
+        # matches the extractor IRPO will run with.
+        if self._allo_pixel_encoder is not None:
+            enc_dir = os.path.join("model", model_env_name, "allo_encoder")
+            os.makedirs(enc_dir, exist_ok=True)
+            enc_path = os.path.join(enc_dir, f"{self.args.seed}.pth")
+            torch.save(self._allo_pixel_encoder.state_dict(), enc_path)
+            print(f"[ALLO] Saved frozen policy encoder to '{enc_path}'.")
 
 
 class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):

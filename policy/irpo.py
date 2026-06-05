@@ -350,7 +350,9 @@ class IRPO_Learner(Base):
                 vae_losses.append(vae_loss.item())
             vae_loss_val = sum(vae_losses) / len(vae_losses)
 
-            # Persist encoder for ALLO training and IRPO+ALLO runs.
+            # Checkpoint the jointly-tuned encoder (int_reward_type=random). Note:
+            # random pretrains a fresh encoder each run and never loads this file;
+            # it's kept only as a recoverable artifact of the run.
             if self._vae_save_path is None:
                 import os
                 _args = self.intrinsic_reward_fn.args
