@@ -230,10 +230,15 @@ class PPO_Critic(Base):
         input_dim: Union[int, tuple, list],
         hidden_dim: list,
         activation: nn.Module = nn.Tanh(),
+        detach_cnn: bool = False,
         device=torch.device("cpu"),
     ):
         super().__init__(device=device)
 
+        # When True, feature-extractor (CNN) output is detached before the value
+        # head, so the value loss never trains the CNN. On Atari IRPO the shared
+        # encoder is trained ONLY by the VAE objective.
+        self.detach_cnn = detach_cnn
         self.hidden_dim = hidden_dim
 
         # Save the original input shape so we can rebuild flattened states
@@ -316,5 +321,7 @@ class PPO_Critic(Base):
             x = x.float() / 255.0
 
         features = self.feature_extractor(x)
+        if self.detach_cnn:
+            features = features.detach()
         value = self.model(features)
         return value

@@ -17,7 +17,9 @@ class PSNE_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
-        self.args.nupdates = args.timesteps // args.batch_size
+        # Rollout batch size is derived from minibatch settings (no --batch-size CLI).
+        self.args.batch_size = int(args.minibatch_size * args.num_minibatch)
+        self.args.nupdates = args.timesteps // self.args.batch_size
 
     def begin_training(self):
         # === Define policy === #

@@ -28,12 +28,14 @@ def override_args(init_args):
     algo_params = load_hyperparams(file_path=algo_config_path)
 
     # use pre-defined params if no pram given as args
+    # getattr(..., None) so config keys without a matching CLI arg (e.g. a
+    # removed --batch-size) are still applied instead of raising AttributeError.
     for k, v in env_params.items():
-        if getattr(args, k) is None:
+        if getattr(args, k, None) is None:
             setattr(args, k, v)
 
     for k, v in algo_params.items():
-        if getattr(args, k) is None:
+        if getattr(args, k, None) is None:
             setattr(args, k, v)
 
     return args
@@ -306,12 +308,10 @@ def get_args():
         default=None,
         help="The size of each mini-batch used during the gradient update step (Alternative to num-minibatch).",
     )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=None,
-        help="The total number of samples collected per rollout before performing an update.",
-    )
+    # NOTE: --batch-size was removed. The rollout batch size is now derived as
+    # num_minibatch * minibatch_size for irpo / psne / trpo (and already was for
+    # ppo / drnd / hrl). Configs may still carry a redundant "batch_size" key,
+    # which is harmlessly applied by override_args but overridden by the algos.
     parser.add_argument(
         "--K-epochs",
         type=int,

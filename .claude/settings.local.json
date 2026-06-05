@@ -38,7 +38,14 @@
       "Bash(python -m py_compile utils/rl.py)",
       "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py)",
       "Bash(python -m py_compile utils/rl.py policy/irpo.py policy/trpo.py policy/psne.py algorithms/trpo.py algorithms/psne.py)",
-      "Bash(python -m py_compile algorithms/irpo.py algorithms/trpo.py algorithms/psne.py policy/irpo.py)"
+      "Bash(python -m py_compile algorithms/irpo.py algorithms/trpo.py algorithms/psne.py policy/irpo.py)",
+      "Bash(python -m py_compile pretrain_vae.py)",
+      "Bash(python -m py_compile algorithms/irpo.py)",
+      "Bash(python -m py_compile utils/get_args.py algorithms/trpo.py algorithms/psne.py algorithms/irpo.py)",
+      "Bash(python -m py_compile utils/get_args.py utils/rl.py algorithms/irpo.py algorithms/trpo.py algorithms/psne.py policy/irpo.py pretrain_vae.py)",
+      "Bash(python -m py_compile utils/get_args.py utils/rl.py utils/get_envs.py algorithms/irpo.py algorithms/trpo.py algorithms/psne.py algorithms/htrpo.py algorithms/ppo.py algorithms/drnd.py algorithms/hrl.py policy/irpo.py policy/trpo.py policy/psne.py pretrain_vae.py main.py)",
+      "Bash(python -m py_compile policy/layers/ppo_networks.py policy/irpo.py algorithms/irpo.py)",
+      "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py policy/layers/ppo_networks.py utils/rl.py)"
     ]
   }
 }

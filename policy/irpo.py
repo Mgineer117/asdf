@@ -59,14 +59,27 @@ class IRPO_Learner(Base):
         gae: float = 0.95,
         anneal_kl: bool = False,
         device: str = "cpu",
-        vae_encoder=None,  # ConvVAEEncoder for Atari; trained jointly via VAE loss
+        vae_encoder=None,  # ConvVAEEncoder for Atari (pre-trained init)
         vae_lr: float = 3e-4,
-        grad_batch_size: int = 256,  # rows used for create_graph grad & TRPO HVP (reduced from 512)
+        train_vae: bool = True,  # True = keep fine-tuning the CNN via VAE loss
+        grad_batch_size: int = 256,  # rows per create_graph grad / TRPO HVP minibatch
     ):
         super().__init__(device=device)
 
         self.name = "IRPO"
         self.device = device
+
+        # The encoder (if provided, i.e. Atari) is the single shared CNN. It is
+        # SHARED — not deep-copied — across the actor, all exploratory clones, and
+        # all critics, so the whole learner holds exactly ONE CNN regardless of
+        # num_options. _share_clone() relies on self.shared_encoder.
+        #
+        # Sharing is independent of whether the CNN is trained: the policy/value
+        # gradients are detached from the CNN (PPO_Actor/Critic detach_cnn=True),
+        # so per-clone IRPO updates leave the CNN untouched. The CNN is fine-tuned
+        # ONLY by the VAE objective (when train_vae=True), starting from the
+        # pre-trained weights loaded by the algorithm.
+        self.shared_encoder = vae_encoder
 
         # IRPO Optimization parameters
         self.base_policy_update_type = base_policy_update_type
@@ -95,21 +108,34 @@ class IRPO_Learner(Base):
         self.intrinsic_reward_fn = intrinsic_reward_fn
         self.num_options = self.intrinsic_reward_fn.num_rewards
 
-        # Critics
+        # Critics — share the encoder so all 2*num_options critics reuse the
+        # single CNN; only their MLP heads are distinct.
         self.ext_critics = nn.ModuleList(
-            [deepcopy(critic) for _ in range(self.num_options)]
+            [self._share_clone(critic) for _ in range(self.num_options)]
         )
         self.int_critics = nn.ModuleList(
-            [deepcopy(critic) for _ in range(self.num_options)]
+            [self._share_clone(critic) for _ in range(self.num_options)]
         )
 
-        # Optimizers for the critics
+        # Critic optimizers must exclude the shared encoder params (by identity):
+        # the CNN is trained only by the VAE objective, never by the value loss.
+        enc_param_ids = (
+            {id(p) for p in self.shared_encoder.parameters()}
+            if self.shared_encoder is not None
+            else set()
+        )
         self.ext_critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
+            torch.optim.Adam(
+                [p for p in critic.parameters() if id(p) not in enc_param_ids],
+                lr=self.critic_lr,
+            )
             for critic in self.ext_critics
         ]
         self.int_critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
+            torch.optim.Adam(
+                [p for p in critic.parameters() if id(p) not in enc_param_ids],
+                lr=self.critic_lr,
+            )
             for critic in self.int_critics
         ]
 
@@ -122,20 +148,22 @@ class IRPO_Learner(Base):
         self.temperature = temperature
 
         # Storage for the best policies found during exploration (for inference/eval)
-        self.final_exp_policies = [deepcopy(actor) for _ in range(self.num_options)]
+        self.final_exp_policies = [
+            self._share_clone(actor) for _ in range(self.num_options)
+        ]
 
         self.wall_clock_time = 0
         self.grad_batch_size = grad_batch_size
         self.to(self.dtype).to(self.device)
 
-        # VAE encoder for Atari: trained independently from IRPO (CNN is detached
-        # inside the actor via detach_cnn=True).  Updated every 5 IRPO steps on
-        # a random minibatch so it runs at a slower temporal scale than IRPO.
-        self.vae_encoder = vae_encoder
+        # Joint VAE fine-tuning: the shared CNN starts from pre-trained weights
+        # and keeps being trained by the VAE objective on incoming policy samples
+        # (every 5 learn() calls, on a minibatch). Set train_vae=False to freeze.
+        self.vae_encoder = vae_encoder if train_vae else None
         self.vae_lr_init = vae_lr
         self.vae_optim = (
             torch.optim.Adam(vae_encoder.parameters(), lr=vae_lr)
-            if vae_encoder is not None
+            if (vae_encoder is not None and train_vae)
             else None
         )
         self._vae_step_counter = 0   # counts learn() calls; VAE runs every 5
@@ -159,6 +187,29 @@ class IRPO_Learner(Base):
             "dist": metaData["dist"],
         }
 
+    def _share_clone(self, module: nn.Module) -> nn.Module:
+        """Clone an actor/critic, sharing the encoder instead of copying it.
+
+        Deep-copying a module with the CNN inside would duplicate the (large) CNN
+        for every option/clone — the dominant OOM source on image envs. Here we
+        temporarily detach the encoder, deep-copy only the small MLP head, then
+        re-attach the single shared encoder to both the original and the clone.
+
+        Sharing is safe whether or not the CNN is trained: policy/value gradients
+        are detached from it (detach_cnn=True), so per-clone updates leave it
+        unchanged; only the VAE optimizer (which holds this same instance) trains
+        the CNN.
+        """
+        if self.shared_encoder is None:
+            return deepcopy(module)
+
+        enc = module.feature_extractor
+        module.feature_extractor = nn.Identity()
+        clone = deepcopy(module)
+        module.feature_extractor = enc
+        clone.feature_extractor = enc
+        return clone
+
     def init_exp_policies(self):
         """
         Initializes the exploratory policies for each intrinsic reward type by cloning the base actor.
@@ -166,7 +217,7 @@ class IRPO_Learner(Base):
         policy_dict = {}
         for i in range(self.num_options):
             actor_idx = f"{i}_{0}"
-            policy_dict[actor_idx] = deepcopy(self.actor)
+            policy_dict[actor_idx] = self._share_clone(self.actor)
         return policy_dict
 
     def backprop(self, policy_dict: dict, gradient_dict: dict, option_idx: int):
@@ -268,9 +319,11 @@ class IRPO_Learner(Base):
 
         total_timesteps += init_batch["states"].shape[0]
 
-        # VAE update — independent from IRPO, runs every 5 IRPO steps on a
-        # random minibatch.  The CNN is detached inside the actor so IRPO's
-        # create_graph=True never touches the CNN graph (avoids OOM).
+        # VAE fine-tuning — the shared CNN (pre-trained init) is the only thing
+        # trained by this objective. Runs every 5 IRPO steps on a random minibatch
+        # of the on-policy frames. The CNN is detached from the policy/value losses
+        # (detach_cnn) so IRPO's create_graph=True never touches the CNN graph,
+        # and the single shared instance keeps the learner to exactly one CNN.
         self._vae_step_counter += 1
         vae_loss_val = 0.0
         if self.vae_encoder is not None and self._vae_step_counter % 5 == 0:
@@ -605,7 +658,7 @@ class IRPO_Learner(Base):
         int_critic_loss = sum(int_losses) / len(int_losses)
 
         # 3. Update Actor (Exploratory Policy) — Averaged gradients across minibatches
-        actor_clone = deepcopy(actor)
+        actor_clone = self._share_clone(actor)
 
         # Select advantage based on whether we are in the 'exploratory' (int)
         # or 'base' (ext) phase of the loop for this specific calculation.
@@ -681,7 +734,7 @@ class IRPO_Learner(Base):
             else:
                 trpo_states = states
 
-            old_actor = deepcopy(self.actor)
+            old_actor = self._share_clone(self.actor)
 
             # Flatten the aggregated gradients
             grad_flat = torch.cat([g.view(-1) for g in grads]).detach()
@@ -788,6 +841,7 @@ class IRPO_G_Learner(IRPO_Learner):
         gae: float = 0.95,
         anneal_kl: bool = True,
         device: str = "cpu",
+        grad_batch_size: int = 256,
     ):
         super().__init__(
             actor=actor,
@@ -808,6 +862,7 @@ class IRPO_G_Learner(IRPO_Learner):
             gae=gae,
             anneal_kl=anneal_kl,
             device=device,
+            grad_batch_size=grad_batch_size,
         )
         self.name = "IRPO_G"
         self.num_goals = NUM_GOALS.get(env_name, None)
@@ -923,7 +978,7 @@ class IRPO_G_Learner(IRPO_Learner):
         ext_critic_loss = sum(ext_losses) / len(ext_losses)
         int_critic_loss = sum(int_losses) / len(int_losses)
 
-        actor_clone = deepcopy(actor)
+        actor_clone = self._share_clone(actor)
         advantages = ext_advantages if flag else int_advantages
         advantages_norm = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
@@ -1074,7 +1129,7 @@ class IRPO_G_Learner(IRPO_Learner):
                 # Normalize advantages within the cluster for scale consistency
                 mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
 
-                probe = deepcopy(actor)
+                probe = self._share_clone(actor)
                 probe.zero_grad()
                 _, meta = probe(mb_states)
                 logprobs = probe.log_prob(meta["dist"], mb_actions)  # (N, 1)

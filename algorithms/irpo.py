@@ -1,9 +1,10 @@
 import os
 
+import torch
 import torch.nn as nn
 
 from policy.irpo import NUM_GOALS, IRPO_G_Learner, IRPO_Learner
-from policy.layers.building_blocks import ConvVAEEncoder
+from policy.layers.building_blocks import MLP, ConvVAEEncoder
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.functions import build_activation
@@ -27,6 +28,9 @@ class IRPO_Algorithm(nn.Module):
         self.logger = logger
         self.writer = writer
         self.args = args
+
+        # Rollout batch size is derived from minibatch settings (no --batch-size CLI).
+        self.args.batch_size = int(args.minibatch_size * args.num_minibatch)
 
         mode = getattr(args, "kernel_mode", "cosine")
         self.goal_conditioned = getattr(args, "is_goal_conditioned", False)
@@ -108,9 +112,12 @@ class IRPO_Algorithm(nn.Module):
     def define_base_policy(self):
         # === Define policy === #
         activation = build_activation(getattr(self.args, "actor_activation", None))
-        # For Atari: CNN is trained by VAE only — IRPO must NOT backprop through it.
-        # detach_cnn=True makes the actor detach CNN features before the MLP so
-        # create_graph=True in IRPO only stores the small MLP graph (fixes OOM).
+        # For Atari: a single shared VAE encoder (CNN) is the visual representation,
+        # initialized from pre-trained weights and then FINE-TUNED during IRPO by
+        # the VAE objective on incoming policy samples. detach_cnn=True on both the
+        # actor and critic ensures the policy/value gradients never train the CNN
+        # (only the VAE optimizer does) and keeps IRPO's create_graph=True graphs
+        # limited to the small MLP heads.
         env_name_base = self.args.env_name.split("-")[0]
         is_atari = env_name_base in _ATARI_ENVS
 
@@ -127,21 +134,59 @@ class IRPO_Algorithm(nn.Module):
             self.args.state_dim,
             hidden_dim=self.args.critic_fc_dim,
             activation=activation,
+            detach_cnn=is_atari,
             device=self.args.device,
         )
 
-        # Replace actor's plain CNN with ConvVAEEncoder (trained via VAE loss).
+        # Build the shared VAE encoder for Atari, initialized from pre-trained
+        # weights when available (kept trainable for joint fine-tuning).
         vae_encoder = None
         if is_atari:
             H, W = self.args.state_dim  # raw grayscale (H, W)
-            latent_dim = getattr(self.args, "encoder_dim", 256)
+            # latent_dim must match PPO_Actor's CNN feature dim (256) so the MLP
+            # head stays compatible.
+            latent_dim = 256
             vae_encoder = ConvVAEEncoder(
                 input_shape=(1, H, W),
                 latent_dim=latent_dim,
                 device=self.args.device,
             )
-            # Swap out the plain CNN; MLP head is compatible (same output dim=256).
+
+            # Initialize from a pre-trained encoder when present (recommended via
+            # pretrain_vae.py). If missing, warn and start from scratch — joint VAE
+            # fine-tuning will still learn the representation, just more slowly.
+            pretrain_path = os.path.join(
+                "model", env_name_base, "encoder", f"{self.args.seed}.pth"
+            )
+            os.makedirs(os.path.dirname(pretrain_path), exist_ok=True)
+            if os.path.exists(pretrain_path):
+                vae_encoder.load_state_dict(
+                    torch.load(pretrain_path, map_location=self.args.device)
+                )
+                print(f"[IRPO] Initialized VAE encoder from pre-trained {pretrain_path}")
+            else:
+                print(
+                    f"[IRPO] No pre-trained encoder at '{pretrain_path}'. "
+                    f"Starting from scratch and fine-tuning via VAE loss.\n"
+                    f"       (Recommended: run `python pretrain_vae.py "
+                    f"--env {env_name_base} --seed {self.args.seed}` first.)"
+                )
+
+            # Share the SAME encoder as the feature extractor for both the actor
+            # and the critic. The critic's MLP head is rebuilt to consume the
+            # encoder's latent_dim (instead of its own 512-d CNN), so the whole
+            # learner holds exactly ONE CNN. The encoder stays trainable so the
+            # VAE optimizer can fine-tune it.
             actor.feature_extractor = vae_encoder
+            critic.feature_extractor = vae_encoder
+            critic.model = MLP(
+                latent_dim,
+                self.args.critic_fc_dim,
+                1,
+                activation=activation,
+                initialization="critic",
+                device=self.args.device,
+            )
 
         shared_kwargs = dict(
             actor=actor,
@@ -175,6 +220,7 @@ class IRPO_Algorithm(nn.Module):
             self.policy = IRPO_Learner(
                 aggregation_method=self.args.aggregation_method,
                 vae_encoder=vae_encoder,
+                train_vae=True,  # pre-trained init + joint VAE fine-tuning; shared CNN
                 **shared_kwargs,
             )
 

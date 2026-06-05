@@ -5,70 +5,79 @@ def average_gradients_across_minibatches(
     model, loss_fn, data_states, data_actions, data_advantages, minibatch_size, create_graph=False
 ):
     """
-    Compute gradients by splitting data into minibatches, accumulating gradients,
-    then averaging. Useful for reducing estimation error while keeping memory low.
+    Compute the full-batch gradient by streaming over minibatches and combining
+    them with size-proportional weights.
 
-    Args:
-        model: nn.Module to compute gradients for
-        loss_fn: callable that takes (states, actions, advantages) and returns scalar loss
-        data_states, data_actions, data_advantages: full batch tensors
-        minibatch_size: size of each minibatch
-        create_graph: if True, allow 2nd derivatives (for IRPO meta-gradients)
+    Because ``loss_fn`` returns a *mean* over its minibatch, the exact full-batch
+    gradient is the size-weighted sum of per-minibatch gradients:
+
+        g_full = sum_m (|m| / B) * grad(mean_{i in m} l_i)
+
+    Using a plain mean-over-minibatches is only correct when every minibatch has
+    the same size; the size weighting here is exact for any batch size.
+
+    Note on memory: with create_graph=True the returned tensors retain the graph
+    of every minibatch (needed for the IRPO second-order meta-gradient). This is
+    bounded because the encoder is frozen + detached, so each minibatch graph
+    covers only the small MLP head, not the CNN.
 
     Returns:
-        Tuple of averaged gradient tensors, one per parameter
+        Tuple of gradient tensors (one per model parameter) == full-batch grad.
     """
     B = data_states.shape[0]
-    all_gradients = []
+    params = list(model.parameters())
+    accumulated = None
 
     for start_idx in range(0, B, minibatch_size):
         end_idx = min(start_idx + minibatch_size, B)
+        weight = (end_idx - start_idx) / B  # |minibatch| / B
+
         mb_states = data_states[start_idx:end_idx]
-        mb_actions = data_actions[start_idx:end_idx]
+        mb_actions = data_actions[start_idx:end_idx] if data_actions is not None else None
         mb_advantages = data_advantages[start_idx:end_idx]
 
         loss = loss_fn(mb_states, mb_actions, mb_advantages)
         grads = torch.autograd.grad(
-            loss, model.parameters(), create_graph=create_graph, allow_unused=True
+            loss, params, create_graph=create_graph, allow_unused=True
         )
         grads = tuple(
-            g if g is not None else torch.zeros_like(p)
-            for p, g in zip(model.parameters(), grads)
+            g if g is not None else torch.zeros_like(p) for p, g in zip(params, grads)
         )
-        all_gradients.append(grads)
+
+        if accumulated is None:
+            accumulated = [weight * g for g in grads]
+        else:
+            accumulated = [a + weight * g for a, g in zip(accumulated, grads)]
         del loss, grads
 
-    # Average gradients across all minibatches
-    num_batches = len(all_gradients)
-    averaged_grads = tuple(
-        sum(all_gradients[i][param_idx] for i in range(num_batches)) / num_batches
-        for param_idx in range(len(all_gradients[0]))
-    )
-    return averaged_grads
+    return tuple(accumulated)
 
 
 def average_loss_across_minibatches(loss_fn, data_states, data_actions, data_returns, minibatch_size):
     """
-    Compute average loss across minibatches. Useful for critic updates to use
-    all data points while keeping batch size manageable.
+    Compute the exact full-batch mean loss by streaming over minibatches with
+    size-proportional weights (loss_fn returns a per-minibatch mean):
 
-    Returns:
-        Scalar tensor (average loss across all minibatches)
+        loss_full = sum_m (|m| / B) * mean_{i in m} l_i
+
+    The returned scalar retains the graph so a single .backward() reproduces the
+    full-batch gradient. (First-order use; no create_graph.)
     """
     B = data_states.shape[0]
-    all_losses = []
+    total = None
 
     for start_idx in range(0, B, minibatch_size):
         end_idx = min(start_idx + minibatch_size, B)
+        weight = (end_idx - start_idx) / B
+
         mb_states = data_states[start_idx:end_idx]
         mb_actions = data_actions[start_idx:end_idx] if data_actions is not None else None
         mb_returns = data_returns[start_idx:end_idx]
 
-        loss = loss_fn(mb_states, mb_actions, mb_returns)
-        all_losses.append(loss)  # Keep the computation graph for backprop
+        loss = weight * loss_fn(mb_states, mb_actions, mb_returns)
+        total = loss if total is None else total + loss
 
-    avg_loss = sum(all_losses) / len(all_losses)
-    return avg_loss
+    return total
 
 
 def flat_params(model):
