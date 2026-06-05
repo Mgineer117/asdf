@@ -159,6 +159,7 @@ class IRPO_Algorithm(nn.Module):
             gae=self.args.gae,
             device=self.args.device,
             anneal_kl=self.args.anneal_kl,
+            grad_batch_size=getattr(self.args, "grad_batch_size", 512),
         )
 
         # IRPO_G_Learner is built for maze-family envs with a *discrete* goal

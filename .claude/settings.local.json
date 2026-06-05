@@ -35,7 +35,8 @@
       "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py utils/intrinsic_rewards.py train_models.py)",
       "Bash(python -m py_compile policy/layers/ppo_networks.py algorithms/irpo.py policy/irpo.py)",
       "Bash(python -m py_compile policy/irpo.py)",
-      "Bash(python -m py_compile utils/rl.py)"
+      "Bash(python -m py_compile utils/rl.py)",
+      "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py)"
     ]
   }
 }

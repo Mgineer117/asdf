@@ -61,6 +61,7 @@ class IRPO_Learner(Base):
         device: str = "cpu",
         vae_encoder=None,  # ConvVAEEncoder for Atari; trained jointly via VAE loss
         vae_lr: float = 3e-4,
+        grad_batch_size: int = 512,  # rows used for create_graph grad & TRPO HVP
     ):
         super().__init__(device=device)
 
@@ -124,6 +125,7 @@ class IRPO_Learner(Base):
         self.final_exp_policies = [deepcopy(actor) for _ in range(self.num_options)]
 
         self.wall_clock_time = 0
+        self.grad_batch_size = grad_batch_size
         self.to(self.dtype).to(self.device)
 
         # VAE encoder for Atari: trained independently from IRPO (CNN is detached
@@ -614,7 +616,20 @@ class IRPO_Learner(Base):
         advantages = ext_advantages if flag else int_advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_loss = self.actor_loss(actor, states, actions, advantages)
+        # Subsample for the create_graph=True gradient to reduce peak memory.
+        # create_graph stores every intermediate activation; a minibatch makes
+        # this proportionally smaller while keeping the gradient direction sound.
+        B = states.shape[0]
+        if B > self.grad_batch_size:
+            idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
+            g_states = states[idx]
+            g_actions = actions[idx]
+            g_adv = advantages[idx]
+            g_adv = (g_adv - g_adv.mean()) / (g_adv.std() + 1e-8)
+        else:
+            g_states, g_actions, g_adv = states, actions, advantages
+
+        actor_loss = self.actor_loss(actor, g_states, g_actions, g_adv)
 
         # Calculate Gradients with create_graph=True
         gradients = torch.autograd.grad(
@@ -664,6 +679,15 @@ class IRPO_Learner(Base):
     ):
         if self.base_policy_update_type == "trpo":
             states = self.preprocess_state(states)
+
+            # Subsample once for all HVP / line-search KL computations.
+            B = states.shape[0]
+            if B > self.grad_batch_size:
+                idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
+                trpo_states = states[idx]
+            else:
+                trpo_states = states
+
             old_actor = deepcopy(self.actor)
 
             # Flatten the aggregated gradients
@@ -671,7 +695,7 @@ class IRPO_Learner(Base):
 
             # KL divergence closure for Hessian Vector Product
             def kl_fn():
-                return compute_kl(old_actor, self.actor, states)
+                return compute_kl(old_actor, self.actor, trpo_states)
 
             Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
 
@@ -694,7 +718,7 @@ class IRPO_Learner(Base):
                     set_flat_params(self.actor, new_params)
 
                     # Verify KL constraint
-                    kl = compute_kl(old_actor, self.actor, states)
+                    kl = compute_kl(old_actor, self.actor, trpo_states)
                     if kl <= self.target_kl:
                         success = True
                         break
