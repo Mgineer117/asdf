@@ -23,10 +23,16 @@ def compute_kl(old_actor, new_policy, obs):
 
 def hessian_vector_product(kl_fn, model, damping, v):
     kl = kl_fn()
-    grads = torch.autograd.grad(kl, model.parameters(), create_graph=True)
+    # allow_unused=True: CNN params are detached inside the actor so kl has no
+    # path to them; their gradient is None, which we replace with zeros.
+    grads = torch.autograd.grad(kl, model.parameters(), create_graph=True, allow_unused=True)
+    grads = tuple(g if g is not None else torch.zeros_like(p)
+                  for p, g in zip(model.parameters(), grads))
     flat_grads = torch.cat([g.view(-1) for g in grads])
     g_v = (flat_grads * v).sum()
-    hv = torch.autograd.grad(g_v, model.parameters())
+    hv = torch.autograd.grad(g_v, model.parameters(), allow_unused=True)
+    hv = tuple(h if h is not None else torch.zeros_like(p)
+               for p, h in zip(model.parameters(), hv))
     flat_hv = torch.cat([h.contiguous().view(-1) for h in hv])
     return flat_hv + damping * v
 
