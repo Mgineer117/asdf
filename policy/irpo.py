@@ -441,7 +441,7 @@ class IRPO_Learner(Base):
         loss_dict[f"{self.name}/analytics/max_ext_returns"] = (
             self.perf_gains.max().item()
         )
-        if vae_loss_val:
+        if self.vae_encoder is not None:
             loss_dict[f"{self.name}/loss/vae_loss"] = vae_loss_val
             loss_dict[f"{self.name}/loss/vae_lr"] = self.vae_optim.param_groups[0]["lr"]
         loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
