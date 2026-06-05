@@ -61,11 +61,11 @@ def average_loss_across_minibatches(loss_fn, data_states, data_actions, data_ret
     for start_idx in range(0, B, minibatch_size):
         end_idx = min(start_idx + minibatch_size, B)
         mb_states = data_states[start_idx:end_idx]
-        mb_actions = data_actions[start_idx:end_idx]
+        mb_actions = data_actions[start_idx:end_idx] if data_actions is not None else None
         mb_returns = data_returns[start_idx:end_idx]
 
         loss = loss_fn(mb_states, mb_actions, mb_returns)
-        all_losses.append(loss.detach())
+        all_losses.append(loss)  # Keep the computation graph for backprop
 
     avg_loss = sum(all_losses) / len(all_losses)
     return avg_loss
