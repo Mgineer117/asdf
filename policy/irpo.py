@@ -60,7 +60,7 @@ class IRPO_Learner(Base):
         anneal_kl: bool = False,
         device: str = "cpu",
         vae_encoder=None,  # ConvVAEEncoder for Atari (pre-trained init)
-        vae_lr: float = 3e-4,
+        vae_lr: float = 1e-4,  # fine-tune LR (pretrain uses 1e-3); annealed
         train_vae: bool = True,  # True = keep fine-tuning the CNN via VAE loss
         grad_batch_size: int = 256,  # rows per create_graph grad / TRPO HVP minibatch
     ):
@@ -320,27 +320,35 @@ class IRPO_Learner(Base):
         total_timesteps += init_batch["states"].shape[0]
 
         # VAE fine-tuning — the shared CNN (pre-trained init) is the only thing
-        # trained by this objective. Runs every 5 IRPO steps on a random minibatch
-        # of the on-policy frames. The CNN is detached from the policy/value losses
-        # (detach_cnn) so IRPO's create_graph=True never touches the CNN graph,
-        # and the single shared instance keeps the learner to exactly one CNN.
+        # trained by this objective. Each IRPO iteration runs ONE epoch over the
+        # on-policy batch, split into minibatches of `grad_batch_size`
+        # (== minibatch_size, i.e. num_minibatch steps per epoch). The LR starts
+        # at vae_lr (1e-4) and is linearly annealed over training. The CNN is
+        # detached from the policy/value losses (detach_cnn) so IRPO's
+        # create_graph=True never touches the CNN graph, and the single shared
+        # instance keeps the learner to exactly one CNN.
         self._vae_step_counter += 1
         vae_loss_val = 0.0
-        if self.vae_encoder is not None and self._vae_step_counter % 5 == 0:
+        if self.vae_encoder is not None:
             # Linearly anneal VAE LR from vae_lr_init down to 10 % of it.
             annealed_lr = self.vae_lr_init * max(0.1, 1.0 - learning_progress)
             for pg in self.vae_optim.param_groups:
                 pg["lr"] = annealed_lr
 
-            # Random minibatch from the on-policy buffer
             raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W)
-            mb_size = min(256, raw_states.shape[0])
-            idx = torch.randperm(raw_states.shape[0], device=raw_states.device)[:mb_size]
-            vae_loss = self.vae_encoder.vae_loss(raw_states[idx])
-            self.vae_optim.zero_grad()
-            vae_loss.backward()
-            self.vae_optim.step()
-            vae_loss_val = vae_loss.item()
+            B = raw_states.shape[0]
+            mb = max(1, self.grad_batch_size)  # == minibatch_size
+            perm = torch.randperm(B, device=raw_states.device)
+
+            vae_losses = []
+            for start in range(0, B, mb):  # one epoch == num_minibatch steps
+                idx = perm[start : start + mb]
+                vae_loss = self.vae_encoder.vae_loss(raw_states[idx])
+                self.vae_optim.zero_grad()
+                vae_loss.backward()
+                self.vae_optim.step()
+                vae_losses.append(vae_loss.item())
+            vae_loss_val = sum(vae_losses) / len(vae_losses)
 
             # Persist encoder for ALLO training and IRPO+ALLO runs.
             if self._vae_save_path is None:

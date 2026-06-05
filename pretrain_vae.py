@@ -62,8 +62,8 @@ def collect_random_samples(env, num_samples: int):
     return np.stack(states)  # (N, H, W)
 
 
-def pretrain_vae(env_name, seed_arg, num_epochs, batch_size, learning_rate,
-                 num_samples, gpu_idx):
+def pretrain_vae(env_name, seed_arg, num_epochs, batch_size, learning_rate=1e-3,
+                 num_samples=100000, gpu_idx=0):
     seed = map_seed(seed_arg)
     seed_all(seed)
     device = select_device(gpu_idx)
@@ -125,7 +125,7 @@ if __name__ == "__main__":
                         help="Seed INDEX into seed_pool (matches main.py --seed)")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=256)
-    parser.add_argument("--learning-rate", type=float, default=3e-4)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--collect-samples", type=int, default=100000)
     parser.add_argument("--gpu-idx", type=int, default=0)
     args = parser.parse_args()
