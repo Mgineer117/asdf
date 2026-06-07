@@ -51,7 +51,7 @@ for env in envs:
     for algo in algos:
         if algo in ["psne", "trpo", "ppo"]:
             partition = "eng-research-gpu"
-            account = "huytran1"
+            account = "huytran1-ic"
             time_limit = "2-00:00:00"
         elif algo in ["irpo", "maml"]:
             partition = "IllinoisComputes-GPU"
@@ -59,11 +59,11 @@ for env in envs:
             time_limit = "3-00:00:00"
         elif algo in ["hrl", "drnd"]:
             partition = "csl"
-            account = "huytran1"
+            account = "huytran1-ic"
             time_limit = "3-00:00:00"
         else:
             partition = "csl"
-            account = "huytran1"
+            account = "huytran1-ic"
             time_limit = "3-00:00:00"
             
         filepath = f"scripts/{env}_{algo}.sbatch"
