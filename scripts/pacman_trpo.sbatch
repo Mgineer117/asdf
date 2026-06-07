@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=pacman_trpo
-#SBATCH --account=huytran1-ic
-#SBATCH --partition=csl
+#SBATCH --account=huytran1
+#SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=7-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=logs/pacman_trpo.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu

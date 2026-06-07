@@ -33,11 +33,17 @@ class MAML_Learner(Base):
         pos_idx: list = None,
         goal_idx: list = None,
         device: str = "cpu",
+        vae_encoder=None,
+        vae_lr: float = 1e-4,
+        train_vae: bool = True,
+        grad_batch_size: int = 256,
     ):
         super().__init__(device=device)
 
         self.name = "MAML"
         self.device = device
+
+        self.shared_encoder = vae_encoder
 
         # MAML Optimization parameters
         self.base_policy_update_type = base_policy_update_type
@@ -64,12 +70,20 @@ class MAML_Learner(Base):
 
         # Critics
         self.critics = nn.ModuleList(
-            [deepcopy(critic) for _ in range(self.num_options)]
+            [self._share_clone(critic) for _ in range(self.num_options)]
         )
 
+        enc_param_ids = (
+            {id(p) for p in self.shared_encoder.parameters()}
+            if self.shared_encoder is not None
+            else set()
+        )
         # Optimizers for the critics
         self.critic_optim = [
-            torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
+            torch.optim.Adam(
+                [p for p in critic.parameters() if id(p) not in enc_param_ids],
+                lr=self.critic_lr,
+            )
             for critic in self.critics
         ]
 
@@ -82,7 +96,29 @@ class MAML_Learner(Base):
         self.sync_obs_rms_to(self.actor, self.critic, self.critics)
 
         self.wall_clock_time = 0
+        self.grad_batch_size = grad_batch_size
         self.to(self.dtype).to(self.device)
+
+        self.vae_encoder = vae_encoder if train_vae else None
+        self.vae_lr_init = vae_lr
+        self.vae_optim = (
+            torch.optim.Adam(vae_encoder.parameters(), lr=vae_lr)
+            if (vae_encoder is not None and train_vae)
+            else None
+        )
+        self._vae_step_counter = 0
+        self._vae_save_path: str | None = None
+
+    def _share_clone(self, module: nn.Module) -> nn.Module:
+        if self.shared_encoder is None:
+            return deepcopy(module)
+
+        enc = module.feature_extractor
+        module.feature_extractor = nn.Identity()
+        clone = deepcopy(module)
+        module.feature_extractor = enc
+        clone.feature_extractor = enc
+        return clone
 
     def forward(
         self,
@@ -110,7 +146,7 @@ class MAML_Learner(Base):
         policy_dict = {}
         for i in range(self.num_options):
             actor_idx = f"{i}_{0}"
-            policy_dict[actor_idx] = deepcopy(self.actor)
+            policy_dict[actor_idx] = self._share_clone(self.actor)
         return policy_dict
 
     def backprop(self, policy_dict: dict, gradient_dict: dict, option_idx: int):
@@ -130,11 +166,16 @@ class MAML_Learner(Base):
         Performs the inner loop updates to adapt the actor using the exploratory policies and returns the final adapted actor.
         """
 
-        actor = deepcopy(self.actor)
+        actor = self._share_clone(self.actor)
+        enc_param_ids = (
+            {id(p) for p in self.shared_encoder.parameters()}
+            if self.shared_encoder is not None
+            else set()
+        )
         optim = torch.optim.Adam(
             [
-                {"params": actor.parameters(), "lr": self.lr},
-                {"params": self.critic.parameters(), "lr": self.critic_lr},
+                {"params": [p for p in actor.parameters() if id(p) not in enc_param_ids], "lr": self.lr},
+                {"params": [p for p in self.critic.parameters() if id(p) not in enc_param_ids], "lr": self.critic_lr},
             ]
         )
 
@@ -171,7 +212,7 @@ class MAML_Learner(Base):
 
         self.adapted_actor = actor
 
-    def learn(self, env, sampler: OnlineSampler, seed: int, **kwargs):
+    def learn(self, env, sampler: OnlineSampler, seed: int, learning_progress: float = 0.0, **kwargs):
         self.train()
 
         t_start_total = time.time()  # Start total timer
@@ -191,6 +232,38 @@ class MAML_Learner(Base):
         self.sync_obs_rms_to(self.actor, self.critic, self.critics, self.adapted_actor)
 
         total_timesteps += init_batch["states"].shape[0]
+
+        self._vae_step_counter += 1
+        vae_loss_val = 0.0
+        if self.vae_encoder is not None:
+            annealed_lr = self.vae_lr_init * max(0.1, 1.0 - learning_progress)
+            for pg in self.vae_optim.param_groups:
+                pg["lr"] = annealed_lr
+
+            raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W)
+            B = raw_states.shape[0]
+            mb = max(1, self.grad_batch_size)  # == minibatch_size
+            perm = torch.randperm(B, device=raw_states.device)
+
+            vae_losses = []
+            for start in range(0, B, mb):  # one epoch == num_minibatch steps
+                idx = perm[start : start + mb]
+                vae_loss = self.vae_encoder.vae_loss(raw_states[idx])
+                self.vae_optim.zero_grad()
+                vae_loss.backward()
+                self.vae_optim.step()
+                vae_losses.append(vae_loss.item())
+            vae_loss_val = sum(vae_losses) / len(vae_losses)
+
+            if self._vae_save_path is None:
+                import os
+                _args = self.intrinsic_reward_fn.args
+                _env = _args.env_name.split("-")[0]
+                _seed = _args.seed
+                _dir = os.path.join("model", _env, "encoder")
+                os.makedirs(_dir, exist_ok=True)
+                self._vae_save_path = os.path.join(_dir, f"{_seed}.pth")
+            torch.save(self.vae_encoder.state_dict(), self._vae_save_path)
 
         loss_dict_list = []
         for j in range(self.num_exp_updates):
@@ -267,6 +340,9 @@ class MAML_Learner(Base):
         loss_dict[f"{self.name}/analytics/max_ext_returns"] = (
             self.perf_gains.max().item()
         )
+        if self.vae_encoder is not None:
+            loss_dict[f"{self.name}/loss/vae_loss"] = vae_loss_val
+            loss_dict[f"{self.name}/loss/vae_lr"] = self.vae_optim.param_groups[0]["lr"]
         loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
             self.wall_clock_time / 3600.0
         )
@@ -334,37 +410,43 @@ class MAML_Learner(Base):
 
         # Loop over the dataset multiple times (epochs)
         for _ in range(critic_epochs):
-            # Shuffle the data at the start of each epoch for true SGD
-            perm = torch.randperm(batch_size)
+            def loss_fn(s, _, r):
+                return self.critic_loss(critic, s, r)
 
-            # Iterate through the dataset in mini-batches
-            for start_idx in range(0, batch_size, mb_size):
-                indices = perm[start_idx : start_idx + mb_size]
+            from utils.rl import average_loss_across_minibatches
+            avg_loss = average_loss_across_minibatches(
+                loss_fn, states, None, returns, self.grad_batch_size
+            )
 
-                # Update Intrinsic Critic
-                loss = self.critic_loss(critic, states[indices], returns[indices])
+            optim.zero_grad()
+            avg_loss.backward()
+            nn.utils.clip_grad_norm_(critic.parameters(), max_norm=0.5)
+            optim.step()
 
-                optim.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_norm_(critic.parameters(), max_norm=0.5)
-                optim.step()
-
-                losses.append(loss.item())
+            losses.append(avg_loss.item())
 
         # Average the accumulated losses for logging
         critic_loss = sum(losses) / len(losses)
 
         # 3. Update Actor (Exploratory Policy)
-        actor_clone = deepcopy(actor)
+        actor_clone = self._share_clone(actor)
 
         # Select advantage based on whether we are in the 'exploratory' (int)
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_loss = self.actor_loss(actor, states, actions, advantages)
+        from utils.rl import average_gradients_across_minibatches
 
-        # Calculate Gradients with create_graph=True
-        gradients = torch.autograd.grad(
-            actor_loss, actor.parameters(), create_graph=True
+        def actor_loss_fn(s, a, adv):
+            return self.actor_loss(actor, s, a, adv)
+
+        gradients = average_gradients_across_minibatches(
+            actor,
+            actor_loss_fn,
+            states,
+            actions,
+            advantages,
+            self.grad_batch_size,
+            create_graph=True,
         )
         # gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
@@ -373,8 +455,11 @@ class MAML_Learner(Base):
             for p, g in zip(actor_clone.parameters(), gradients):
                 p -= self.lr * g
 
+        with torch.no_grad():
+            actor_loss_log = self.actor_loss(actor, states, actions, advantages)
+
         loss_dict = {
-            f"{self.name}/loss/actor_loss": actor_loss.item(),
+            f"{self.name}/loss/actor_loss": actor_loss_log.item(),
             f"{self.name}/loss/critic_loss": critic_loss,
         }
 
@@ -398,7 +483,7 @@ class MAML_Learner(Base):
         if self.base_policy_update_type == "trpo":
             states = self.preprocess_state(states)
             self.sync_obs_rms_to(self.actor)
-            old_actor = deepcopy(self.actor)
+            old_actor = self._share_clone(self.actor)
 
             # Flatten the aggregated gradients
             grad_flat = torch.cat([g.view(-1) for g in grads]).detach()

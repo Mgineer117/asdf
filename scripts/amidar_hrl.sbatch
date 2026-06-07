@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=amidar_hrl
-#SBATCH --account=huytran1-ic
+#SBATCH --account=huytran1
 #SBATCH --partition=csl
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
-#SBATCH --time=7-00:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --output=logs/amidar_hrl.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
