@@ -232,7 +232,8 @@ class PSNE_Learner(Base):
             avg_loss = average_loss_across_minibatches(
                 critic_loss_fn, states, None, returns, self.grad_batch_size
             )
-            value_loss, l2_loss = self.critic_loss(states, returns)
+            l2_loss = sum(param.pow(2).sum() for param in self.critic.parameters()) * self.l2_reg
+            value_loss = avg_loss - l2_loss
             loss = avg_loss
 
             self.optimizer.zero_grad()

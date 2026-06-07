@@ -221,7 +221,7 @@ class TRPO_Learner(Base):
             avg_loss = average_loss_across_minibatches(
                 critic_loss_fn, states, None, returns, self.grad_batch_size
             )
-            value_loss = avg_loss.item()
+            value_loss = avg_loss
             loss = avg_loss
 
             self.optimizer.zero_grad()
