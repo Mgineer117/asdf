@@ -150,15 +150,37 @@ class PSNE_Learner(Base):
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_gradients, actor_loss = self.actor_loss(states, actions, advantages)
+        from utils.rl import average_gradients_across_minibatches, average_loss_across_minibatches
+        
+        actor_gradients = average_gradients_across_minibatches(
+            self.actor,
+            self.actor_loss,
+            states,
+            actions,
+            advantages,
+            self.grad_batch_size,
+            create_graph=False,
+        )
+
+        with torch.no_grad():
+            actor_loss = average_loss_across_minibatches(
+                self.actor_loss, states, actions, advantages, self.grad_batch_size
+            )
 
         # === actor trpo update === #
         old_actor = deepcopy(self.actor)
         grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
 
+        B = states.shape[0]
+        if B > self.grad_batch_size:
+            idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
+            trpo_states = states[idx]
+        else:
+            trpo_states = states
+
         # KL function (closure)
         def kl_fn():
-            return compute_kl(old_actor, self.actor, states)
+            return compute_kl(old_actor, self.actor, trpo_states)
 
         # Define HVP function
         Hv = lambda v: hessian_vector_product(kl_fn, self.actor, self.damping, v)
@@ -181,7 +203,7 @@ class PSNE_Learner(Base):
                 step_frac = self.backtrack_coeff**i
                 new_params = old_params - step_frac * full_step
                 set_flat_params(self.actor, new_params)
-                kl = compute_kl(old_actor, self.actor, states)
+                kl = compute_kl(old_actor, self.actor, trpo_states)
 
                 if kl <= self.target_kl:
                     success = True
@@ -273,13 +295,7 @@ class PSNE_Learner(Base):
 
         loss = actor_loss - entropy_loss
 
-        # Compute gradients wrt mean and logstd predictors
-        actor_gradients = torch.autograd.grad(
-            loss, self.actor.parameters(), retain_graph=True
-        )
-        # actor_gradients = self.clip_grad_norm(actor_gradients, max_norm=0.5)
-
-        return actor_gradients, actor_loss.detach()
+        return loss
 
     def critic_loss(self, states: torch.Tensor, returns: torch.Tensor):
         mb_values = self.critic(states)

@@ -122,16 +122,44 @@ class TRPO_Learner(Base):
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_gradients, actor_loss = self.actor_loss(states, actions, advantages)
+        from utils.rl import average_gradients_across_minibatches, average_loss_across_minibatches
+        
+        actor_gradients = average_gradients_across_minibatches(
+            self.actor,
+            self.actor_loss,
+            states,
+            actions,
+            advantages,
+            self.grad_batch_size,
+            create_graph=False,
+        )
+
+        with torch.no_grad():
+            actor_loss = average_loss_across_minibatches(
+                self.actor_loss, states, actions, advantages, self.grad_batch_size
+            )
 
         # === actor trpo update === #
         old_actor = deepcopy(self.actor)
 
         grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
 
+        B = states.shape[0]
+        if B > self.grad_batch_size:
+            idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
+            trpo_states = states[idx]
+            trpo_actions = actions[idx]
+            trpo_advantages = advantages[idx]
+            trpo_old_logprobs = old_logprobs[idx]
+        else:
+            trpo_states = states
+            trpo_actions = actions
+            trpo_advantages = advantages
+            trpo_old_logprobs = old_logprobs
+
         # KL function (closure)
         def kl_fn():
-            return compute_kl(old_actor, self.actor, states)
+            return compute_kl(old_actor, self.actor, trpo_states)
 
         # Define HVP function
         Hv = lambda v: hessian_vector_product(kl_fn, self.actor, self.damping, v)
@@ -144,8 +172,6 @@ class TRPO_Learner(Base):
         lm = torch.sqrt(sAs / self.target_kl)
         full_step = step_dir / (lm + 1e-8)
 
-        # You ALREADY calculated the old loss on line 161:
-        # actor_gradients, actor_loss = self.actor_loss(...)
         old_loss = actor_loss.item()
 
         with torch.no_grad():
@@ -161,14 +187,14 @@ class TRPO_Learner(Base):
                 kl = kl_fn()
 
                 # === INLINE LOSS CALCULATION ===
-                _, metaData = self.actor(states)
-                new_logprobs = self.actor.log_prob(metaData["dist"], actions)
+                _, metaData = self.actor(trpo_states)
+                new_logprobs = self.actor.log_prob(metaData["dist"], trpo_actions)
                 new_entropy = self.actor.entropy(metaData["dist"])
 
-                ratios = torch.exp(new_logprobs - old_logprobs)
+                ratios = torch.exp(new_logprobs - trpo_old_logprobs)
 
                 # Surrogate objective minus entropy bonus
-                surrogate = -(ratios * advantages).mean()
+                surrogate = -(ratios * trpo_advantages).mean()
                 entropy_bonus = self.entropy_scaler * new_entropy.mean()
                 new_loss = surrogate - entropy_bonus
                 # ===============================
@@ -262,11 +288,7 @@ class TRPO_Learner(Base):
 
         loss = actor_loss - entropy_loss
 
-        # find grad of actor towards actor_loss
-        actor_gradients = torch.autograd.grad(loss, self.actor.parameters())
-        # actor_gradients = self.clip_grad_norm(actor_gradients, max_norm=0.5)
-
-        return actor_gradients, actor_loss.detach()
+        return loss
 
     def critic_loss(self, states: torch.Tensor, returns: torch.Tensor):
         mb_values = self.critic(states)

@@ -86,28 +86,43 @@ class PPO_Learner(Base):
 
         update_time = time.time()
 
-        # Ingredients: Convert batch data to tensors
-        states = self.preprocess_state(batch["states"])
-        actions = self.preprocess_state(batch["actions"])
-        rewards = self.preprocess_state(batch["rewards"])
-        terminations = self.preprocess_state(batch["terminations"])
-        truncations = self.preprocess_state(batch["truncations"])
-        old_logprobs = self.preprocess_state(batch["logprobs"])
+        # Ingredients: Convert batch data to tensors (keep on CPU)
+        states = torch.as_tensor(batch["states"], dtype=self.dtype)
+        actions = torch.as_tensor(batch["actions"], dtype=self.dtype)
+        rewards = torch.as_tensor(batch["rewards"], dtype=self.dtype)
+        terminations = torch.as_tensor(batch["terminations"], dtype=self.dtype)
+        truncations = torch.as_tensor(batch["truncations"], dtype=self.dtype)
+        old_logprobs = torch.as_tensor(batch["logprobs"], dtype=self.dtype)
+
+        timesteps = states.shape[0]
 
         # FOR HRL option pretraining
         int_reward_fn = kwargs.get("intrinsic_reward_fn")
         option_idx = kwargs.get("option_idx")
 
         if int_reward_fn is not None and option_idx is not None:
-            next_states = self.preprocess_state(batch["next_states"])
-            rewards = int_reward_fn(states, next_states)[:, option_idx : option_idx + 1]
-
-        # self.record_state_visitations(states)
-        timesteps = states.shape[0]
+            next_states = torch.as_tensor(batch["next_states"], dtype=self.dtype)
+            rewards_list = []
+            chunk_size = 512
+            for start in range(0, timesteps, chunk_size):
+                end = min(start + chunk_size, timesteps)
+                mb_s = self.preprocess_state(states[start:end])
+                mb_ns = self.preprocess_state(next_states[start:end])
+                mb_r = int_reward_fn(mb_s, mb_ns)[:, option_idx : option_idx + 1]
+                rewards_list.append(mb_r.cpu())
+            rewards = torch.cat(rewards_list, dim=0)
 
         # Compute advantages and returns
         with torch.no_grad():
-            values = self.critic(states)
+            values = []
+            chunk_size = 512
+            for start in range(0, timesteps, chunk_size):
+                end = min(start + chunk_size, timesteps)
+                mb_states = self.preprocess_state(states[start:end])
+                mb_values = self.critic(mb_states)
+                values.append(mb_values.cpu())
+            values = torch.cat(values, dim=0)
+            
             advantages, returns = estimate_advantages(
                 rewards,
                 terminations,
@@ -135,9 +150,15 @@ class PPO_Learner(Base):
                 indices = torch.randperm(batch_size)[: self.minibatch_size]
                 mb_states, mb_actions = states[indices], actions[indices]
                 mb_old_logprobs, mb_returns = old_logprobs[indices], returns[indices]
-
-                # advantages
                 mb_advantages = advantages[indices]
+
+                # Move minibatch to device
+                mb_states = self.preprocess_state(mb_states)
+                mb_actions = mb_actions.to(self.device)
+                mb_old_logprobs = mb_old_logprobs.to(self.device)
+                mb_returns = mb_returns.to(self.device)
+                mb_advantages = mb_advantages.to(self.device)
+
                 mb_advantages = (mb_advantages - mb_advantages.mean()) / (
                     mb_advantages.std() + 1e-8
                 )
