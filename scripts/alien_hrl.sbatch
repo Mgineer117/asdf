@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=alien_hrl
-#SBATCH --account=huytran1
+#SBATCH --account=huytran1-ic
 #SBATCH --partition=csl
 #SBATCH --nodes=1
 #SBATCH --ntasks=5

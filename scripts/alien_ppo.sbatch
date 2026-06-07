@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=alien_ppo
-#SBATCH --account=huytran1
+#SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
