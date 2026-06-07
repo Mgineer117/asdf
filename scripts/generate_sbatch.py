@@ -36,7 +36,7 @@ mkdir -p logs
 
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {{0..4}}; do
-    python3 main.py --project NEW_IRPO --env {env} --algo {algo} --seed $SEED --gpu-idx 0 &
+    python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 0 &
     sleep 3
 done
 
