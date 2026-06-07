@@ -95,22 +95,27 @@ class TRPO_Learner(Base):
 
         t0 = time.time()
 
-        # Ingredients: Convert batch data to tensors
-        states = self.preprocess_state(batch["states"])
-        self.update_obs_rms(states)
-        self.sync_obs_rms_to(self.actor, self.critic)
-        actions = self.preprocess_state(batch["actions"])
-        rewards = self.preprocess_state(batch["rewards"])
-        terminations = self.preprocess_state(batch["terminations"])
-        truncations = self.preprocess_state(batch["truncations"])
-        old_logprobs = self.preprocess_state(batch["logprobs"])
+        # Ingredients: Convert batch data to tensors (kept on CPU to save VRAM)
+        states = torch.as_tensor(batch["states"], dtype=self.dtype)
+        actions = torch.as_tensor(batch["actions"], dtype=self.dtype)
+        rewards = torch.as_tensor(batch["rewards"], dtype=self.dtype)
+        terminations = torch.as_tensor(batch["terminations"], dtype=self.dtype)
+        truncations = torch.as_tensor(batch["truncations"], dtype=self.dtype)
+        old_logprobs = torch.as_tensor(batch["logprobs"], dtype=self.dtype)
 
-        # self.record_state_visitations(states)
         timesteps = states.shape[0]
 
-        # Compute advantages and returns
+        # Compute advantages and returns in chunks to prevent full-batch OOM
         with torch.no_grad():
-            values = self.critic(states)
+            values = []
+            chunk_size = 512
+            for start in range(0, timesteps, chunk_size):
+                end = min(start + chunk_size, timesteps)
+                mb_states = self.preprocess_state(states[start:end])
+                mb_values = self.critic(mb_states)
+                values.append(mb_values.cpu())
+            values = torch.cat(values, dim=0)
+
             advantages, returns = estimate_advantages(
                 rewards,
                 terminations,
@@ -124,9 +129,15 @@ class TRPO_Learner(Base):
 
         from utils.rl import average_gradients_across_minibatches, average_loss_across_minibatches
         
+        def actor_loss_fn(s, a, adv):
+            s = self.preprocess_state(s)
+            a = a.to(self.device)
+            adv = adv.to(self.device)
+            return self.actor_loss(s, a, adv)
+
         actor_gradients = average_gradients_across_minibatches(
             self.actor,
-            self.actor_loss,
+            actor_loss_fn,
             states,
             actions,
             advantages,
@@ -136,7 +147,7 @@ class TRPO_Learner(Base):
 
         with torch.no_grad():
             actor_loss = average_loss_across_minibatches(
-                self.actor_loss, states, actions, advantages, self.grad_batch_size
+                actor_loss_fn, states, actions, advantages, self.grad_batch_size
             )
 
         # === actor trpo update === #
@@ -146,16 +157,19 @@ class TRPO_Learner(Base):
 
         B = states.shape[0]
         if B > self.grad_batch_size:
-            idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
-            trpo_states = states[idx]
-            trpo_actions = actions[idx]
-            trpo_advantages = advantages[idx]
-            trpo_old_logprobs = old_logprobs[idx]
+            idx = torch.randperm(B)[: self.grad_batch_size]
+            trpo_states = self.preprocess_state(states[idx])
+            trpo_actions = actions[idx].to(self.device)
+            trpo_advantages = advantages[idx].to(self.device)
+            trpo_old_logprobs = old_logprobs[idx].to(self.device)
         else:
-            trpo_states = states
-            trpo_actions = actions
-            trpo_advantages = advantages
-            trpo_old_logprobs = old_logprobs
+            trpo_states = self.preprocess_state(states)
+            trpo_actions = actions.to(self.device)
+            trpo_advantages = advantages.to(self.device)
+            trpo_old_logprobs = old_logprobs.to(self.device)
+
+        self.update_obs_rms(trpo_states)
+        self.sync_obs_rms_to(self.actor, self.critic)
 
         # KL function (closure)
         def kl_fn():
@@ -216,6 +230,8 @@ class TRPO_Learner(Base):
 
         for _ in range(critic_epochs):
             def critic_loss_fn(s, _, r):
+                s = self.preprocess_state(s)
+                r = r.to(self.device)
                 return self.critic_loss(s, r)
 
             avg_loss = average_loss_across_minibatches(

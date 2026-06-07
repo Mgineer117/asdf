@@ -335,15 +335,17 @@ class IRPO_Learner(Base):
             for pg in self.vae_optim.param_groups:
                 pg["lr"] = annealed_lr
 
-            raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W)
-            B = raw_states.shape[0]
+            # VAE inputs kept on CPU until minibatched
+            raw_states_cpu = torch.as_tensor(init_batch["states"], dtype=self.dtype)
+            B = raw_states_cpu.shape[0]
             mb = max(1, self.grad_batch_size)  # == minibatch_size
-            perm = torch.randperm(B, device=raw_states.device)
+            perm = torch.randperm(B)
 
             vae_losses = []
             for start in range(0, B, mb):  # one epoch == num_minibatch steps
                 idx = perm[start : start + mb]
-                vae_loss = self.vae_encoder.vae_loss(raw_states[idx])
+                mb_raw_states = self.preprocess_state(raw_states_cpu[idx])
+                vae_loss = self.vae_encoder.vae_loss(mb_raw_states)
                 self.vae_optim.zero_grad()
                 vae_loss.backward()
                 self.vae_optim.step()
@@ -677,41 +679,68 @@ class IRPO_Learner(Base):
 
         # Average gradients across minibatches: uses full batch info but keeps
         # memory low by only storing one create_graph=True graph at a time.
-        from utils.rl import average_gradients_across_minibatches
+        from utils.rl import average_gradients_across_minibatches, average_loss_across_minibatches
 
+        # --- Compute gradients ---
         def actor_loss_fn(s, a, adv):
-            return self.actor_loss(actor, s, a, adv)
+            s = self.preprocess_state(s)
+            a = a.to(self.device)
+            adv = adv.to(self.device)
+            return self.actor_loss(exp_actor, s, a, adv)
 
-        gradients = average_gradients_across_minibatches(
-            actor,
+        actor_gradients = average_gradients_across_minibatches(
+            exp_actor,
             actor_loss_fn,
-            states,
-            actions,
+            exp_states,
+            exp_actions,
             advantages,
             self.grad_batch_size,
             create_graph=True,
         )
-        # gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
-        with torch.no_grad():
-            for p, g in zip(actor_clone.parameters(), gradients):
-                p -= self.lr * g
+        gradients = [g.detach() for g in actor_gradients]
+
+        # --- Optimize Critics ---
+        # Extrinsic Critic
+        def ext_critic_loss_fn(s, _, r):
+            s = self.preprocess_state(s)
+            r = r.to(self.device)
+            return self.critic_loss(self.ext_critics[i], s, r)
+
+        ext_critic_loss = average_loss_across_minibatches(
+            ext_critic_loss_fn, exp_states, None, ext_returns, self.grad_batch_size
+        )
+        self.ext_critic_optim[i].zero_grad()
+        ext_critic_loss.backward()
+        self.ext_critic_optim[i].step()
+
+        # Intrinsic Critic
+        def int_critic_loss_fn(s, _, r):
+            s = self.preprocess_state(s)
+            r = r.to(self.device)
+            return self.critic_loss(self.int_critics[i], s, r)
+
+        int_critic_loss = average_loss_across_minibatches(
+            int_critic_loss_fn, exp_states, None, int_returns, self.grad_batch_size
+        )
+        self.int_critic_optim[i].zero_grad()
+        int_critic_loss.backward()
+        self.int_critic_optim[i].step()
 
         # If this is the final exploratory step, save this policy as a potential inference policy
         if flag:
-            self.final_exp_policies[i] = actor_clone
-
-        # # Update Int Reward Generator (if it has learnable parameters, e.g., DRND)
-        # self.int_reward_fn.learn(states, next_states, i, source)
+            self.final_exp_policies[i] = exp_actor
 
         # Compute actor loss on full batch for logging
         with torch.no_grad():
-            actor_loss_log = self.actor_loss(actor, states, actions, advantages)
+            actor_loss_log = average_loss_across_minibatches(
+                actor_loss_fn, exp_states, exp_actions, advantages, self.grad_batch_size
+            )
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss_log.item(),
-            f"{self.name}/loss/ext_critic_loss": ext_critic_loss,
-            f"{self.name}/loss/int_critic_loss": int_critic_loss,
+            f"{self.name}/loss/ext_critic_loss": ext_critic_loss.item(),
+            f"{self.name}/loss/int_critic_loss": int_critic_loss.item(),
         }
 
         update_time = time.time() - t0
@@ -719,9 +748,8 @@ class IRPO_Learner(Base):
         return {
             "loss_dict": loss_dict,
             "update_time": update_time,
-            "updated_actor": actor_clone,
+            "updated_actor": exp_actor,
             "gradients": gradients,
-            # "used_lr": lr,
             "ext_return": ext_returns.mean().item(),
         }
 
@@ -734,15 +762,15 @@ class IRPO_Learner(Base):
         backtrack_coeff: float = 0.7,
     ):
         if self.base_policy_update_type == "trpo":
-            states = self.preprocess_state(states)
+            states = torch.as_tensor(states, dtype=self.dtype)
 
             # Subsample once for all HVP / line-search KL computations.
             B = states.shape[0]
             if B > self.grad_batch_size:
-                idx = torch.randperm(B, device=states.device)[: self.grad_batch_size]
-                trpo_states = states[idx]
+                idx = torch.randperm(B)[: self.grad_batch_size]
+                trpo_states = self.preprocess_state(states[idx])
             else:
-                trpo_states = states
+                trpo_states = self.preprocess_state(states)
 
             old_actor = self._share_clone(self.actor)
 

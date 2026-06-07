@@ -183,15 +183,22 @@ class MAML_Learner(Base):
             self.sync_obs_rms_to(actor, self.critic)
             batch, _ = sampler.collect_samples(env, actor, seed)
 
-            states = self.preprocess_state(batch["states"])
-            self.update_obs_rms(states)
-            self.sync_obs_rms_to(actor, self.critic)
-            actions = self.preprocess_state(batch["actions"])
-            rewards = self.preprocess_state(batch["rewards"])
-            terminations = self.preprocess_state(batch["terminations"])
-            truncations = self.preprocess_state(batch["truncations"])
+            states = torch.as_tensor(batch["states"], dtype=self.dtype)
+            actions = torch.as_tensor(batch["actions"], dtype=self.dtype)
+            rewards = torch.as_tensor(batch["rewards"], dtype=self.dtype)
+            terminations = torch.as_tensor(batch["terminations"], dtype=self.dtype)
+            truncations = torch.as_tensor(batch["truncations"], dtype=self.dtype)
+            timesteps = states.shape[0]
+
             with torch.no_grad():
-                values = self.critic(states)
+                values = []
+                chunk_size = 512
+                for start in range(0, timesteps, chunk_size):
+                    end = min(start + chunk_size, timesteps)
+                    mb_states = self.preprocess_state(states[start:end])
+                    values.append(self.critic(mb_states).cpu())
+                values = torch.cat(values, dim=0)
+
                 advantages, returns = estimate_advantages(
                     rewards,
                     terminations,
@@ -201,11 +208,25 @@ class MAML_Learner(Base):
                     gae=self.gae,
                 )
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-            actor_loss = self.actor_loss(actor, states, actions, advantages)
-            critic_loss = self.critic_loss(self.critic, states, returns)
-            loss = actor_loss + critic_loss
+
             optim.zero_grad()
-            loss.backward()
+            mb_size = self.grad_batch_size
+            B = states.shape[0]
+            for start in range(0, B, mb_size):
+                end = min(start + mb_size, B)
+                weight = (end - start) / B
+                mb_states = self.preprocess_state(states[start:end])
+                self.update_obs_rms(mb_states)
+                self.sync_obs_rms_to(actor, self.critic)
+                mb_actions = actions[start:end].to(self.device)
+                mb_advantages = advantages[start:end].to(self.device)
+                mb_returns = returns[start:end].to(self.device)
+                
+                a_loss = self.actor_loss(actor, mb_states, mb_actions, mb_advantages)
+                c_loss = self.critic_loss(self.critic, mb_states, mb_returns)
+                loss = (a_loss + c_loss) * weight
+                loss.backward()
+                
             nn.utils.clip_grad_norm_(actor.parameters(), max_norm=0.5)
             nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
             optim.step()
@@ -240,15 +261,16 @@ class MAML_Learner(Base):
             for pg in self.vae_optim.param_groups:
                 pg["lr"] = annealed_lr
 
-            raw_states = self.preprocess_state(init_batch["states"])  # (B, H, W)
-            B = raw_states.shape[0]
+            raw_states_cpu = torch.as_tensor(init_batch["states"], dtype=self.dtype)
+            B = raw_states_cpu.shape[0]
             mb = max(1, self.grad_batch_size)  # == minibatch_size
-            perm = torch.randperm(B, device=raw_states.device)
+            perm = torch.randperm(B)
 
             vae_losses = []
             for start in range(0, B, mb):  # one epoch == num_minibatch steps
                 idx = perm[start : start + mb]
-                vae_loss = self.vae_encoder.vae_loss(raw_states[idx])
+                mb_raw_states = self.preprocess_state(raw_states_cpu[idx])
+                vae_loss = self.vae_encoder.vae_loss(mb_raw_states)
                 self.vae_optim.zero_grad()
                 vae_loss.backward()
                 self.vae_optim.step()
@@ -377,17 +399,22 @@ class MAML_Learner(Base):
         t0 = time.time()
 
         # Preprocessing data
-        states = self.preprocess_state(batch["states"])
-        self.update_obs_rms(states)
-        self.sync_obs_rms_to(actor, self.critics[i])
-        actions = self.preprocess_state(batch["actions"])
-        rewards = self.preprocess_state(batch["rewards"][:, i : i + 1])
-        terminations = self.preprocess_state(batch["terminations"])
-        truncations = self.preprocess_state(batch["truncations"])
+        # Extract batch data and keep on CPU
+        states = torch.as_tensor(batch["states"], dtype=self.dtype)
+        actions = torch.as_tensor(batch["actions"], dtype=self.dtype)
+        rewards = torch.as_tensor(batch["rewards"][:, i : i + 1], dtype=self.dtype)
+        terminations = torch.as_tensor(batch["terminations"], dtype=self.dtype)
+        truncations = torch.as_tensor(batch["truncations"], dtype=self.dtype)
 
         # Estimate Advantages
         with torch.no_grad():
-            values = self.critics[i](states)
+            values = []
+            chunk_size = 512
+            for start in range(0, states.shape[0], chunk_size):
+                end = min(start + chunk_size, states.shape[0])
+                mb_states = self.preprocess_state(states[start:end])
+                values.append(self.critics[i](mb_states).cpu())
+            values = torch.cat(values, dim=0)
 
             advantages, returns = estimate_advantages(
                 rewards,
@@ -399,23 +426,21 @@ class MAML_Learner(Base):
             )
 
         # Critic Mini-batch Updates
-        batch_size = states.shape[0]
-        critic_epochs = 5  # Number of passes over the data
-        num_minibatches = 4  # Split data into 4 chunks per epoch
-        mb_size = max(1, batch_size // num_minibatches)
-
         critic = self.critics[i]
         optim = self.critic_optim[i]
         losses = []
 
         # Loop over the dataset multiple times (epochs)
+        critic_epochs = 5  # Number of passes over the data
         for _ in range(critic_epochs):
-            def loss_fn(s, _, r):
+            def critic_loss_fn(s, _, r):
+                s = self.preprocess_state(s)
+                r = r.to(self.device)
                 return self.critic_loss(critic, s, r)
 
             from utils.rl import average_loss_across_minibatches
             avg_loss = average_loss_across_minibatches(
-                loss_fn, states, None, returns, self.grad_batch_size
+                critic_loss_fn, states, None, returns, self.grad_batch_size
             )
 
             optim.zero_grad()
@@ -437,6 +462,11 @@ class MAML_Learner(Base):
         from utils.rl import average_gradients_across_minibatches
 
         def actor_loss_fn(s, a, adv):
+            s = self.preprocess_state(s)
+            self.update_obs_rms(s)
+            self.sync_obs_rms_to(actor, self.critics[i])
+            a = a.to(self.device)
+            adv = adv.to(self.device)
             return self.actor_loss(actor, s, a, adv)
 
         gradients = average_gradients_across_minibatches(
@@ -448,7 +478,6 @@ class MAML_Learner(Base):
             self.grad_batch_size,
             create_graph=True,
         )
-        # gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # Manual SGD update on the clone to keep the graph connected
         with torch.no_grad():
@@ -456,7 +485,10 @@ class MAML_Learner(Base):
                 p -= self.lr * g
 
         with torch.no_grad():
-            actor_loss_log = self.actor_loss(actor, states, actions, advantages)
+            from utils.rl import average_loss_across_minibatches
+            actor_loss_log = average_loss_across_minibatches(
+                actor_loss_fn, states, actions, advantages, self.grad_batch_size
+            )
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss_log.item(),
@@ -481,7 +513,16 @@ class MAML_Learner(Base):
         backtrack_coeff: float = 0.7,
     ):
         if self.base_policy_update_type == "trpo":
-            states = self.preprocess_state(states)
+            states = torch.as_tensor(states, dtype=self.dtype)
+
+            # Subsample
+            B = states.shape[0]
+            if B > self.grad_batch_size:
+                idx = torch.randperm(B)[: self.grad_batch_size]
+                trpo_states = self.preprocess_state(states[idx])
+            else:
+                trpo_states = self.preprocess_state(states)
+
             self.sync_obs_rms_to(self.actor)
             old_actor = self._share_clone(self.actor)
 
@@ -490,7 +531,7 @@ class MAML_Learner(Base):
 
             # KL divergence closure for Hessian Vector Product
             def kl_fn():
-                return compute_kl(old_actor, self.actor, states)
+                return compute_kl(old_actor, self.actor, trpo_states)
 
             Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
 
