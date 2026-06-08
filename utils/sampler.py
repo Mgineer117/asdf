@@ -182,8 +182,6 @@ class OnlineSampler(Base):
         np.random.seed(worker_seed)
         random.seed(worker_seed)
         torch.manual_seed(worker_seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(worker_seed)
 
         data = self.get_reset_data(self.worker_batch_size)
         step_count = 0
@@ -216,7 +214,7 @@ class OnlineSampler(Base):
             step_count += 1
 
             if done:
-                state, _ = env.reset(seed=worker_seed)
+                state, _ = env.reset()
                 ep_step = 0
             else:
                 state = next_state
@@ -264,8 +262,6 @@ class HLSampler(OnlineSampler):
         np.random.seed(worker_seed)
         random.seed(worker_seed)
         torch.manual_seed(worker_seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(worker_seed)
 
         data = self.get_reset_data(self.worker_batch_size)
         step_count = 0
@@ -326,7 +322,7 @@ class HLSampler(OnlineSampler):
             step_count += 1
 
             if done:
-                state, _ = env.reset(seed=worker_seed)
+                state, _ = env.reset()
                 ep_step = 0
             else:
                 state = next_state
