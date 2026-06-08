@@ -10,6 +10,7 @@ sbatch_template = """#!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
+#SBATCH --mem=128G
 #SBATCH --gres=gpu:{gpu_count}
 #SBATCH --time={time_limit}
 #SBATCH --output=logs/{env}_{algo}.o%j
