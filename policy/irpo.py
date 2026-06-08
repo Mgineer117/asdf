@@ -691,8 +691,8 @@ class IRPO_Learner(Base):
         actor_gradients = average_gradients_across_minibatches(
             exp_actor,
             actor_loss_fn,
-            exp_states,
-            exp_actions,
+            states,
+            actions,
             advantages,
             self.grad_batch_size,
             create_graph=True,
@@ -712,7 +712,7 @@ class IRPO_Learner(Base):
             return self.critic_loss(self.ext_critics[i], s, r)
 
         ext_critic_loss = average_loss_across_minibatches(
-            ext_critic_loss_fn, exp_states, None, ext_returns, self.grad_batch_size
+            ext_critic_loss_fn, states, None, ext_returns, self.grad_batch_size
         )
         self.ext_critic_optim[i].zero_grad()
         ext_critic_loss.backward()
@@ -725,7 +725,7 @@ class IRPO_Learner(Base):
             return self.critic_loss(self.int_critics[i], s, r)
 
         int_critic_loss = average_loss_across_minibatches(
-            int_critic_loss_fn, exp_states, None, int_returns, self.grad_batch_size
+            int_critic_loss_fn, states, None, int_returns, self.grad_batch_size
         )
         self.int_critic_optim[i].zero_grad()
         int_critic_loss.backward()
@@ -738,7 +738,7 @@ class IRPO_Learner(Base):
         # Compute actor loss on full batch for logging
         with torch.no_grad():
             actor_loss_log = average_loss_across_minibatches(
-                actor_loss_fn, exp_states, exp_actions, advantages, self.grad_batch_size
+                actor_loss_fn, states, actions, advantages, self.grad_batch_size
             )
 
         loss_dict = {
