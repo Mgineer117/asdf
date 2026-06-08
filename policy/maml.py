@@ -153,11 +153,36 @@ class MAML_Learner(Base):
         grads = gradient_dict[f"{option_idx}_{self.num_exp_updates - 1}"]
         for j in reversed(range(self.num_exp_updates - 1)):
             iter_idx = f"{option_idx}_{j}"
-            Hv = grad(
-                gradient_dict[iter_idx],
-                policy_dict[iter_idx].parameters(),
-                grad_outputs=grads,
-            )
+            all_params = tuple(policy_dict[iter_idx].parameters())
+            all_grad_tensors = gradient_dict[iter_idx]
+
+            active = [
+                (k, g) for k, g in enumerate(all_grad_tensors)
+                if g.grad_fn is not None
+            ]
+
+            if active:
+                indices, filtered_outputs = zip(*active)
+                filtered_grad_outputs = tuple(grads[k] for k in indices)
+                filtered_inputs = tuple(all_params[k] for k in indices)
+
+                Hv_partial = grad(
+                    filtered_outputs,
+                    filtered_inputs,
+                    grad_outputs=filtered_grad_outputs,
+                    allow_unused=True,
+                )
+                hv_map = {
+                    idx: (h if h is not None else torch.zeros_like(all_params[idx]))
+                    for idx, h in zip(indices, Hv_partial)
+                }
+                Hv = tuple(
+                    hv_map.get(k, torch.zeros_like(p))
+                    for k, p in enumerate(all_params)
+                )
+            else:
+                Hv = tuple(torch.zeros_like(p) for p in all_params)
+
             grads = tuple(g - self.lr * h for g, h in zip(grads, Hv))
         return grads
 
