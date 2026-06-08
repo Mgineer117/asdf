@@ -87,12 +87,12 @@ class PPO_Learner(Base):
         update_time = time.time()
 
         # Ingredients: Convert batch data to tensors (keep on CPU)
-        states = torch.as_tensor(batch["states"], dtype=self.dtype)
-        actions = torch.as_tensor(batch["actions"], dtype=self.dtype)
-        rewards = torch.as_tensor(batch["rewards"], dtype=self.dtype)
-        terminations = torch.as_tensor(batch["terminations"], dtype=self.dtype)
-        truncations = torch.as_tensor(batch["truncations"], dtype=self.dtype)
-        old_logprobs = torch.as_tensor(batch["logprobs"], dtype=self.dtype)
+        states = torch.as_tensor(batch["states"], dtype=self.dtype, device="cpu")
+        actions = torch.as_tensor(batch["actions"], dtype=self.dtype, device="cpu")
+        rewards = torch.as_tensor(batch["rewards"], dtype=self.dtype, device="cpu")
+        terminations = torch.as_tensor(batch["terminations"], dtype=self.dtype, device="cpu")
+        truncations = torch.as_tensor(batch["truncations"], dtype=self.dtype, device="cpu")
+        old_logprobs = torch.as_tensor(batch["logprobs"], dtype=self.dtype, device="cpu")
 
         timesteps = states.shape[0]
 

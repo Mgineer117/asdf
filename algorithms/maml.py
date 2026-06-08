@@ -131,7 +131,7 @@ class MAML_Algorithm(nn.Module):
                     latent_dim=latent_dim,
                     device=self.args.device,
                 )
-                if self.args.int_reward_type == "random":
+                if self.args.int_reward_type == "random" and cnn_mode == "independent":
                     from pretrain_vae import train_vae_encoder
 
                     epochs = int(getattr(self.args, "vae_pretrain_epochs", 50))

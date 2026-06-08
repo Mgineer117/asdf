@@ -670,7 +670,7 @@ class IRPO_Learner(Base):
         int_critic_loss = sum(int_losses) / len(int_losses)
 
         # 3. Update Actor (Exploratory Policy) — Averaged gradients across minibatches
-        actor_clone = self._share_clone(actor)
+        exp_actor = self._share_clone(actor)
 
         # Select advantage based on whether we are in the 'exploratory' (int)
         # or 'base' (ext) phase of the loop for this specific calculation.
@@ -699,6 +699,10 @@ class IRPO_Learner(Base):
         )
 
         gradients = [g.detach() for g in actor_gradients]
+
+        with torch.no_grad():
+            for p, g in zip(exp_actor.parameters(), gradients):
+                p -= self.lr * g
 
         # --- Optimize Critics ---
         # Extrinsic Critic

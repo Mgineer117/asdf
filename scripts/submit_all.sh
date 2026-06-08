@@ -6,7 +6,7 @@ mkdir -p logs
 echo "========================================================="
 echo " Submitting all 28 Experiment Jobs to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
-echo " running 5 seeds (0-4) in parallel on 1 GPU."
+echo " running 5 seeds across 2 GPUs (seeds 0-2 on GPU0, 3-4 on GPU1)."
 echo "========================================================="
 
 echo "[SUBMIT] scripts/pacman_ppo.sbatch"
