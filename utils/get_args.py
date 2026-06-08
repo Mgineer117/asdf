@@ -226,6 +226,13 @@ def get_args():
         action="store_true",
         help="Whether to find the optimal learning rate for the intrinsic reward signal.",
     )
+    parser.add_argument(
+        "--cnn-mode",
+        type=str,
+        default="simultaneous",
+        choices=["independent", "simultaneous"],
+        help="Whether the CNN encoder is 'independently trained' (frozen during RL) or 'simultaneously trained' (fine-tuned jointly via VAE loss).",
+    )
 
     # === ALLO (FEATURE EXTRACTOR) PARAMETERS === #
     parser.add_argument(

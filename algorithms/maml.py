@@ -77,20 +77,23 @@ class MAML_Algorithm(nn.Module):
         _ATARI_ENVS = {"pacman", "amidar", "bankheist", "alien"}
         is_atari = env_name_base in _ATARI_ENVS
 
+        cnn_mode = getattr(self.args, "cnn_mode", "simultaneous")
+        detach_cnn = True if (is_atari and cnn_mode == "independent") else False
+
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
             activation=activation,
-            detach_cnn=is_atari,
+            detach_cnn=detach_cnn,
             device=self.args.device,
         )
         critic = PPO_Critic(
             self.args.state_dim,
             hidden_dim=self.args.critic_fc_dim,
             activation=activation,
-            detach_cnn=is_atari,
+            detach_cnn=detach_cnn,
             device=self.args.device,
         )
 
@@ -146,7 +149,9 @@ class MAML_Algorithm(nn.Module):
                         num_samples=samples,
                         device=self.args.device,
                     )
-                train_vae = True
+                train_vae = (cnn_mode == "independent")
+                if not train_vae:
+                    print(f"[MAML] cnn_mode={cnn_mode}. CNN encoder is trained end-to-end by RL like PPO. VAE loss is disabled.")
 
             actor.feature_extractor = vae_encoder
             critic.feature_extractor = vae_encoder
