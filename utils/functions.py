@@ -17,6 +17,8 @@ def build_activation(activation_name):
     key = str(activation_name).strip().lower()
     if key == "relu":
         return nn.ReLU()
+    if key == "elu":
+        return nn.ELU()
     if key == "tanh":
         return nn.Tanh()
     raise ValueError(

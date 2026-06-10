@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=256G
+#SBATCH --mem=192G
 #SBATCH --gres=gpu:1
 #SBATCH --time=3-00:00:00
 #SBATCH --output=logs/bankheist_irpo.o%j
@@ -32,7 +32,7 @@ mkdir -p logs
 
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {0..4}; do
-    python3 main.py --project Atari --env bankheist --algo irpo --seed $SEED --gpu-idx 0 &
+    python3 main.py --project Atari --env bankheist --algo irpo --seed $SEED --gpu-idx 0 --actor_activation elu &
     sleep 3
 done
 
