@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=128G
+#SBATCH --mem=256G
 #SBATCH --gres=gpu:1
 #SBATCH --time=3-00:00:00
 #SBATCH --output=logs/bankheist_irpo.o%j
