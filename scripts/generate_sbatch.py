@@ -43,20 +43,20 @@ wait
 
 run_commands_1gpu = """# === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {{0..4}}; do
-    python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 0 --actor_activation elu &
+    python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 0 --actor-activation elu &
     sleep 3
 done"""
 
 run_commands_2gpus = """# === Run 5 seeds across 2 GPUs === #
 # First three seeds (0, 1, 2) on GPU 0
 for SEED in 0 1 2; do
-    srun -N 1 -n 1 --cpus-per-task=4 --exact python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 0 --actor_activation elu &
+    srun -N 1 -n 1 --cpus-per-task=4 --exact python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 0 --actor-activation elu &
     sleep 3
 done
 
 # Next two seeds (3, 4) on GPU 1
 for SEED in 3 4; do
-    srun -N 1 -n 1 --cpus-per-task=4 --exact python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 1 --actor_activation elu &
+    srun -N 1 -n 1 --cpus-per-task=4 --exact python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 1 --actor-activation elu &
     sleep 3
 done"""
 
