@@ -2,5 +2,5 @@
     "learning_rate": 0.01,
     "num_exp_updates": 5,
     "target_kl": 0.0003,
-    "atari_learning_rate": 0.002
+    "atari_learning_rate": 0.001
 }
