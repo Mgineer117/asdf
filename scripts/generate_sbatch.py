@@ -47,18 +47,7 @@ for SEED in {{0..4}}; do
     sleep 3
 done"""
 
-run_commands_2gpus = """# === Run 5 seeds across 2 GPUs === #
-# First three seeds (0, 1, 2) on GPU 0
-for SEED in 0 1 2; do
-    python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 0 --actor-activation elu &
-    sleep 3
-done
 
-# Next two seeds (3, 4) on GPU 1
-for SEED in 3 4; do
-    python3 main.py --project Atari --env {env} --algo {algo} --seed $SEED --gpu-idx 1 --actor-activation elu &
-    sleep 3
-done"""
 
 os.makedirs("scripts", exist_ok=True)
 
@@ -69,8 +58,8 @@ for env in envs:
             partition = "eng-research-gpu"
             account = "huytran1-ic"
             time_limit = "2-00:00:00"
-            gpu_count = 2
-            run_commands = run_commands_2gpus.format(env=env, algo=algo)
+            gpu_count = 1
+            run_commands = run_commands_1gpu.format(env=env, algo=algo)
         elif algo in ["irpo", "maml"]:
             partition = "IllinoisComputes-GPU"
             account = "huytran1-ic"
@@ -81,14 +70,14 @@ for env in envs:
             partition = "csl"
             account = "huytran1-ic"
             time_limit = "3-00:00:00"
-            gpu_count = 2
-            run_commands = run_commands_2gpus.format(env=env, algo=algo)
+            gpu_count = 1
+            run_commands = run_commands_1gpu.format(env=env, algo=algo)
         else:
             partition = "csl"
             account = "huytran1-ic"
             time_limit = "3-00:00:00"
-            gpu_count = 2
-            run_commands = run_commands_2gpus.format(env=env, algo=algo)
+            gpu_count = 1
+            run_commands = run_commands_1gpu.format(env=env, algo=algo)
             
         filepath = f"scripts/{env}_{algo}.sbatch"
         content = sbatch_template.format(env=env, algo=algo, partition=partition, account=account, time_limit=time_limit, gpu_count=gpu_count, run_commands=run_commands)
@@ -106,7 +95,7 @@ mkdir -p logs
 echo "========================================================="
 echo " Submitting all {len(envs) * len(algos)} Experiment Jobs to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
-echo " running 5 seeds across 1 or 2 GPUs depending on partition."
+echo " running 5 seeds across 1 GPU."
 echo "========================================================="
 
 """
@@ -138,7 +127,7 @@ mkdir -p logs
 echo "========================================================="
 echo " Submitting all {len(algos)} Experiment Jobs for {env} to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
-echo " running 5 seeds (0-4) across 1 or 2 GPUs."
+echo " running 5 seeds (0-4) across 1 GPU."
 echo "========================================================="
 
 """

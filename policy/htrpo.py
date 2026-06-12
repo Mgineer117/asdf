@@ -445,6 +445,7 @@ class HTRPO_Learner(Base):
         step_dir = conjugate_gradients(Hv, grad_flat, nsteps=10)
 
         sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
+        sAs = torch.clamp(sAs, min=1e-8)
         lm = torch.sqrt(sAs / self.target_kl)
         full_step = step_dir / (lm + 1e-8)
 

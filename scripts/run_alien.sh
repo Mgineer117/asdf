@@ -6,7 +6,7 @@ mkdir -p logs
 echo "========================================================="
 echo " Submitting all 7 Experiment Jobs for alien to the Cluster"
 echo " Each job (algorithm + environment) is allocated to 1 Node"
-echo " running 5 seeds (0-4) across 1 or 2 GPUs."
+echo " running 5 seeds (0-4) across 1 GPU."
 echo "========================================================="
 
 echo "[SUBMIT] scripts/alien_ppo.sbatch"

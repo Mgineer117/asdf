@@ -183,6 +183,7 @@ class TRPO_Learner(Base):
 
         # Compute step size to satisfy KL constraint
         sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
+        sAs = torch.clamp(sAs, min=1e-8)
         lm = torch.sqrt(sAs / self.target_kl)
         full_step = step_dir / (lm + 1e-8)
 
