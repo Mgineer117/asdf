@@ -38,6 +38,10 @@ def override_args(init_args):
         if getattr(args, k, None) is None:
             setattr(args, k, v)
 
+    atari_envs = ["pacman", "amidar", "bankheist", "alien"]
+    if config_env_name in atari_envs and getattr(args, "atari_learning_rate", None) is not None:
+        args.learning_rate = args.atari_learning_rate
+
     return args
 
 
@@ -136,6 +140,12 @@ def get_args():
         type=float,
         default=None,
         help="The learning rate for the Actor network optimizer (used in standard baselines like PPO).",
+    )
+    parser.add_argument(
+        "--atari-learning-rate",
+        type=float,
+        default=None,
+        help="Learning rate for Atari environments",
     )
     parser.add_argument(
         "--actor-activation",
@@ -370,6 +380,10 @@ def get_args():
 
     args = parser.parse_args()
     args.device = select_device(args.gpu_idx)
+
+    atari_envs = ["pacman", "amidar", "bankheist", "alien"]
+    if config_env_name in atari_envs and getattr(args, "atari_learning_rate", None) is not None:
+        args.learning_rate = args.atari_learning_rate
 
     return args
 
