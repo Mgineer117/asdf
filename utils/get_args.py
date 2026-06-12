@@ -382,7 +382,8 @@ def get_args():
     args.device = select_device(args.gpu_idx)
 
     atari_envs = ["pacman", "amidar", "bankheist", "alien"]
-    if config_env_name in atari_envs and getattr(args, "atari_learning_rate", None) is not None:
+    env_name, _, _ = args.env_name.partition("-")
+    if env_name in atari_envs and getattr(args, "atari_learning_rate", None) is not None:
         args.learning_rate = args.atari_learning_rate
 
     return args
