@@ -445,9 +445,15 @@ class HTRPO_Learner(Base):
         step_dir = conjugate_gradients(Hv, grad_flat, nsteps=10)
 
         sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
-        sAs = torch.clamp(sAs, min=1e-8)
-        lm = torch.sqrt(sAs / self.target_kl)
-        full_step = step_dir / (lm + 1e-8)
+        if sAs < 1e-8:
+            full_step = torch.zeros_like(step_dir)
+        else:
+            lm = torch.sqrt(sAs / self.target_kl)
+            full_step = step_dir / lm
+        
+        if not torch.isfinite(full_step).all():
+            print("WARNING: full_step contains NaN/Inf! Rejecting update.")
+            full_step = torch.zeros_like(step_dir)
 
         with torch.no_grad():
             old_params = flat_params(old_actor)
