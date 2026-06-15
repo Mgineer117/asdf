@@ -6,7 +6,7 @@ import torch
 import sys
 import argparse
 
-from utils.get_args import get_args
+from utils.get_args import get_args, override_args
 from main import run
 
 def train():
@@ -17,6 +17,16 @@ def train():
     
     # Get standard args
     args = get_args()
+    
+    # Force algorithm to irpo, random reward, pacman env
+    args.algo_name = "irpo"
+    args.irpo_type = "irpo"
+    args.int_reward_type = "random"
+    args.env_name = "pacman"
+    args.actor_activation = "elu"
+    
+    # Override args from config files (e.g., set minibatch_size)
+    args = override_args(args)
     
     # Override args with sweep config
     if "num_exp_updates" in config:
@@ -38,12 +48,6 @@ def train():
     
     # We set num_runs to 1 as we only want one execution per sweep combination
     args.num_runs = 1
-    
-    # Force algorithm to irpo, random reward, pacman env
-    args.algo_name = "irpo"
-    args.irpo_type = "irpo"
-    args.int_reward_type = "random"
-    args.env_name = "pacman"
     
     print(f"-------------------------------------------------------")
     print(f"      IRPO Random Pacman Sweep Trial ID: {unique_id}")
