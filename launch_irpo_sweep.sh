@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Number of agents to run per GPU (2 agents * 4 GPUs = 8 agents total)
-AGENTS_PER_GPU=2
+# Number of agents to run per GPU (1 agent * 4 GPUs = 4 agents total)
+AGENTS_PER_GPU=1
 
 echo "=========================================================="
 echo "    Launching IRPO Random Hyperparameter Sweep in Background  "
@@ -22,7 +22,7 @@ if [ -z "$SWEEP_ID_IRPO" ]; then
 fi
 echo "✅ IRPO Sweep created with ID: $SWEEP_ID_IRPO"
 
-echo "🚀 Launching 8 agents for IRPO Random (2 per GPU on GPUs 0, 1, 2, 3)..."
+echo "🚀 Launching 4 agents for IRPO Random (1 per GPU on GPUs 0, 1, 2, 3)..."
 for ((i=1; i<=$AGENTS_PER_GPU; i++)); do
     CUDA_VISIBLE_DEVICES=0 python3 search_irpo_random.py --sweep_id $SWEEP_ID_IRPO --project IRPO-RANDOM-PACMAN-SWEEP > log_sweep_irpo_gpu0_$i.txt 2>&1 &
     CUDA_VISIBLE_DEVICES=1 python3 search_irpo_random.py --sweep_id $SWEEP_ID_IRPO --project IRPO-RANDOM-PACMAN-SWEEP > log_sweep_irpo_gpu1_$i.txt 2>&1 &
@@ -32,6 +32,6 @@ done
 
 echo ""
 echo "=========================================================="
-echo "🎉 All 8 agents successfully deployed to the background! "
+echo "🎉 All 4 agents successfully deployed to the background! "
 echo "   - IRPO logs : log_sweep_irpo_gpuX_Y.txt"
 echo "=========================================================="
