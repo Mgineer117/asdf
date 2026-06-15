@@ -85,7 +85,7 @@ if __name__ == "__main__":
             },
             "parameters": {
                 "num_exp_updates": {
-                    "values": [1, 2, 5, 10, 20]
+                    "values": [2, 5, 10, 20]
                 },
                 "temperature": {
                     "min": 0.01,
