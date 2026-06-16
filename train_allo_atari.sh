@@ -18,7 +18,7 @@ for i in "${!ENVS[@]}"; do
     # Sleep for 5 minutes before launching the next one, except for the last environment
     if [ $i -lt $((${#ENVS[@]} - 1)) ]; then
         echo "  -> Sleeping for 5 minutes to prevent RAM bottleneck..."
-        sleep 300
+        sleep 5
     fi
 done
 
