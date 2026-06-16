@@ -287,8 +287,8 @@ class ALLO(Base):
         states_np = batch["states"]
         dones_np = np.logical_or(batch["terminations"], batch["truncations"])
 
-        # Convert to CPU tensors
-        states = torch.from_numpy(states_np).float()
+        # Convert to CPU tensors without casting to float yet to save RAM
+        states = torch.from_numpy(states_np)
         dones = torch.from_numpy(dones_np).float()
 
         # Identify episode start/end indices
@@ -323,8 +323,8 @@ class ALLO(Base):
             s1_list.append(states[t1])
             s2_list.append(states[t2])
 
-        s1 = torch.stack(s1_list).to(device)
-        s2 = torch.stack(s2_list).to(device)
+        s1 = torch.stack(s1_list).float().to(device)
+        s2 = torch.stack(s2_list).float().to(device)
 
         if self.positional_indices is not None:
             return s1[:, self.positional_indices], s2[:, self.positional_indices]

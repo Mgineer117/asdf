@@ -3,14 +3,13 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
-#SBATCH --ntasks=5
+#SBATCH --ntasks=10
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=192G
-#SBATCH --gres=gpu:H200:1
+#SBATCH --gres=gpu:H200:2
 #SBATCH --time=3-00:00:00
-#SBATCH --array=1-10
 #SBATCH --nice=0
-#SBATCH --output=logs/irpo_sweep.o%A_%a
+#SBATCH --output=logs/irpo_sweep.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
 
@@ -22,7 +21,24 @@ if [ -z "$SWEEP_ID" ]; then
     exit 1
 fi
 
-echo "Starting WandB agent for Sweep ID: $SWEEP_ID [Array Task $SLURM_ARRAY_TASK_ID]"
+echo "Starting WandB agents for Sweep ID: $SWEEP_ID on 2 H200 GPUs (10 agents total)"
 
-# Run the agent (each parallel worker will execute 20 trials before exiting)
-python search_irpo_random.py --sweep_id "$SWEEP_ID" --count 20
+export PYTHONNOUSERSITE=1
+eval "$(conda shell.bash hook)"
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/u/minjae5/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+conda activate irpo
+
+# Run 5 agents on GPU 0
+for i in {1..5}; do
+    CUDA_VISIBLE_DEVICES=0 python search_irpo_random.py --sweep_id "$SWEEP_ID" --count 20 &
+    sleep 3
+done
+
+# Run 5 agents on GPU 1
+for i in {1..5}; do
+    CUDA_VISIBLE_DEVICES=1 python search_irpo_random.py --sweep_id "$SWEEP_ID" --count 20 &
+    sleep 3
+done
+
+wait

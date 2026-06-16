@@ -15,7 +15,7 @@ if [ -z "$SWEEP_ID" ]; then
 fi
 
 echo "Successfully created sweep ID: $SWEEP_ID"
-echo "Submitting 10 parallel agents to IllinoisComputes-GPU..."
+echo "Submitting 10 parallel agents (5 per GPU) to IllinoisComputes-GPU on 2 H200s..."
 
 # Pass the sweep ID to the sbatch array script
 sbatch sweep_worker.sbatch $SWEEP_ID

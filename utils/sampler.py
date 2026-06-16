@@ -18,9 +18,10 @@ class Base:
 
     def get_reset_data(self, size: int):
         """Pre-allocate arrays for one worker's worth of samples."""
+        state_dtype = np.uint8 if len(self.state_dim) > 1 else np.float32
         data = dict(
-            states=np.zeros(((size,) + self.state_dim), dtype=np.float32),
-            next_states=np.zeros(((size,) + self.state_dim), dtype=np.float32),
+            states=np.zeros(((size,) + self.state_dim), dtype=state_dtype),
+            next_states=np.zeros(((size,) + self.state_dim), dtype=state_dtype),
             actions=np.zeros((size, self.action_dim), dtype=np.float32),
             rewards=np.zeros((size, 1), dtype=np.float32),
             terminations=np.zeros((size, 1), dtype=np.float32),

@@ -37,6 +37,8 @@ def train():
         args.learning_rate = config.learning_rate
     if "target_kl" in config:
         args.target_kl = config.target_kl
+    if "num_options" in config:
+        args.num_options = config.num_options
         
     # Setup for the trial run
     unique_id = str(uuid.uuid4())[:4]
@@ -85,7 +87,7 @@ if __name__ == "__main__":
             },
             "parameters": {
                 "num_exp_updates": {
-                    "values": [2, 5, 10, 20]
+                    "values": [2, 5, 10]
                 },
                 "temperature": {
                     "min": 0.01,
@@ -101,6 +103,9 @@ if __name__ == "__main__":
                     "min": 1e-5,
                     "max": 1e-2,
                     "distribution": "log_uniform_values"
+                },
+                "num_options": {
+                    "values": [2, 4, 6]
                 }
             }
         }
