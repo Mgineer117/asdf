@@ -6,7 +6,7 @@
 #SBATCH --ntasks=20
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=192G
-#SBATCH --gres=gpu:A100:2
+#SBATCH --gres=gpu:2
 #SBATCH --time=3-00:00:00
 #SBATCH --nice=0
 #SBATCH --output=logs/irpo_sweep.o%j
@@ -21,7 +21,7 @@ if [ -z "$SWEEP_ID" ]; then
     exit 1
 fi
 
-echo "Starting WandB agents for Sweep ID: $SWEEP_ID on 2 A100 GPUs (20 agents total)"
+echo "Starting WandB agents for Sweep ID: $SWEEP_ID on 2 GPUs (20 agents total)"
 
 export PYTHONNOUSERSITE=1
 eval "$(conda shell.bash hook)"
