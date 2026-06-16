@@ -37,8 +37,6 @@ def train():
         args.learning_rate = config.learning_rate
     if "target_kl" in config:
         args.target_kl = config.target_kl
-    
-    args.num_options = 3
         
     # Setup for the trial run
     unique_id = str(uuid.uuid4())[:4]
