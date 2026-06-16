@@ -106,12 +106,14 @@ class IRPO_Algorithm(nn.Module):
             is_discrete=self.args.is_discrete,
             activation=activation,
             device=self.args.device,
+            detach_cnn=True,
         )
         critic = PPO_Critic(
             self.args.state_dim,
             hidden_dim=self.args.critic_fc_dim,
             activation=activation,
             device=self.args.device,
+            detach_cnn=True,
         )
 
 

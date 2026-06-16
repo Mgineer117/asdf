@@ -30,15 +30,20 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 conda activate irpo
 
 # Run 5 agents on GPU 0
+echo "Starting 5 agents on GPU 0..."
 for i in {1..5}; do
+    echo "  -> Launching Agent $i on GPU 0..."
     CUDA_VISIBLE_DEVICES=0 python search_irpo_random.py --sweep_id "$SWEEP_ID" --count 20 &
     sleep 3
 done
 
 # Run 5 agents on GPU 1
+echo "Starting 5 agents on GPU 1..."
 for i in {1..5}; do
+    echo "  -> Launching Agent $((i+5)) on GPU 1..."
     CUDA_VISIBLE_DEVICES=1 python search_irpo_random.py --sweep_id "$SWEEP_ID" --count 20 &
     sleep 3
 done
 
+echo "All 10 agents successfully deployed! Waiting for completion..."
 wait
