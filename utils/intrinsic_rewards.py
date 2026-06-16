@@ -62,14 +62,14 @@ ATARI_ENCODER_DIM = 256
 
 class AtariFeatureNet(nn.Module):
     """
-    A wrapper network for image states that combines the CNN and MLP.
-    Returns (features, None) to perfectly match the expected output format of NeuralNet.
+    A wrapper network for image states that combines the CNN and MLP (or a custom backbone).
+    Returns (features, infos) to perfectly match the expected output format of NeuralNet.
 
     `self.cnn` is the reusable visual encoder: ALLO trains it end-to-end (no VAE
     loss) and its weights are saved as the FROZEN encoder the IRPO policy loads.
     """
 
-    def __init__(self, chw_shape, feature_dim, device, cnn_features_dim=ATARI_ENCODER_DIM):
+    def __init__(self, chw_shape, feature_dim, device, cnn_features_dim=ATARI_ENCODER_DIM, backbone=None):
         super().__init__()
 
         self.feature_dim = feature_dim
@@ -85,13 +85,16 @@ class AtariFeatureNet(nn.Module):
         )
 
         # 2. Project the encoder features down to the ALLO eigenvector feature_dim.
-        self.mlp = MLP(
-            input_dim=cnn_features_dim,
-            hidden_dims=[512, 512, 512],
-            output_dim=feature_dim,
-            activation=nn.Tanh(),
-            device=device,
-        )
+        if backbone is not None:
+            self.backbone = backbone
+        else:
+            self.backbone = MLP(
+                input_dim=cnn_features_dim,
+                hidden_dims=[512, 512, 512],
+                output_dim=feature_dim,
+                activation=nn.Tanh(),
+                device=device,
+            )
 
     def forward(self, x, deterministic=False):
         # Accept (B, H, W) grayscale or (B, 1, H, W) — normalise to [0, 1]
@@ -100,8 +103,11 @@ class AtariFeatureNet(nn.Module):
         if x.max() > 1.0:
             x = x / 255.0
         feat = self.cnn(x)
-        feat = self.mlp(feat)
-        return feat, {}
+        if isinstance(self.backbone, MLP):
+            feat = self.backbone(feat)
+            return feat, {}
+        else:
+            return self.backbone(feat, deterministic=deterministic)
 
 
 class EncoderWrappedNetwork(nn.Module):
@@ -337,10 +343,18 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             # RGB Image State: Use the Custom CNN Wrapper
             chw_shape = (self.input_shape[2], self.input_shape[0], self.input_shape[1])
 
+            backbone = NeuralNet(
+                state_dim=(ATARI_ENCODER_DIM,),
+                feature_dim=self.args.feature_dim,
+                encoder_fc_dim=[128, 128],
+                activation=nn.LeakyReLU(),
+                device=self.args.device,
+            )
             feature_network = AtariFeatureNet(
                 chw_shape=chw_shape,
                 feature_dim=self.args.feature_dim,
                 device=self.args.device,
+                backbone=backbone,
             )
             # Since we are using images, pos_idx slicing is disabled
             extractor_pos_idx = None
@@ -349,10 +363,18 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             # Grayscale Image State: Force add 1 channel -> (1, H, W)
             chw_shape = (1, self.input_shape[0], self.input_shape[1])
 
+            backbone = NeuralNet(
+                state_dim=(ATARI_ENCODER_DIM,),
+                feature_dim=self.args.feature_dim,
+                encoder_fc_dim=[128, 128],
+                activation=nn.LeakyReLU(),
+                device=self.args.device,
+            )
             feature_network = AtariFeatureNet(
                 chw_shape=chw_shape,
                 feature_dim=self.args.feature_dim,
                 device=self.args.device,
+                backbone=backbone,
             )
             # Since we are using images, pos_idx slicing is disabled
             extractor_pos_idx = None
@@ -363,7 +385,7 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
                 state_dim=len(self.args.pos_idx),
                 feature_dim=self.args.feature_dim,
                 encoder_fc_dim=[128, 128],
-                activation=nn.ELU(),
+                activation=nn.LeakyReLU(),
             )
             extractor_pos_idx = self.args.pos_idx
 
@@ -529,10 +551,18 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             else:
                 chw_shape = (self.input_shape[2], self.input_shape[0], self.input_shape[1])
 
+            backbone = NeuralNet(
+                state_dim=(ATARI_ENCODER_DIM,),
+                feature_dim=self.args.feature_dim,
+                encoder_fc_dim=[512, 512, 512, 512],
+                activation=nn.LeakyReLU(),
+                device=self.args.device,
+            )
             feature_network = AtariFeatureNet(
                 chw_shape=chw_shape,
                 feature_dim=self.args.feature_dim,
                 device=self.args.device,
+                backbone=backbone,
             )
             self._allo_pixel_encoder = feature_network.cnn
             extractor_pos_idx = None
