@@ -7,6 +7,6 @@
     "int_reward_type": "random",
     "batch_size": 4096,
     "num_minibatch": 16,
-    "minibatch_size": 256,
+    "minibatch_size": 64,
     "discount_sampling_factor": 0.999
 }

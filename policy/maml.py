@@ -33,17 +33,13 @@ class MAML_Learner(Base):
         pos_idx: list = None,
         goal_idx: list = None,
         device: str = "cpu",
-        vae_encoder=None,
-        vae_lr: float = 1e-4,
-        train_vae: bool = True,
+
         grad_batch_size: int = 256,
     ):
         super().__init__(device=device)
 
         self.name = "MAML"
-        self.device = device
 
-        self.shared_encoder = vae_encoder
 
         # MAML Optimization parameters
         self.base_policy_update_type = base_policy_update_type
@@ -73,15 +69,9 @@ class MAML_Learner(Base):
             [self._share_clone(critic) for _ in range(self.num_options)]
         )
 
-        enc_param_ids = (
-            {id(p) for p in self.shared_encoder.parameters()}
-            if self.shared_encoder is not None
-            else set()
-        )
-        # Optimizers for the critics
         self.critic_optim = [
             torch.optim.Adam(
-                [p for p in critic.parameters() if id(p) not in enc_param_ids],
+                critic.parameters(),
                 lr=self.critic_lr,
             )
             for critic in self.critics
@@ -99,26 +89,10 @@ class MAML_Learner(Base):
         self.grad_batch_size = grad_batch_size
         self.to(self.dtype).to(self.device)
 
-        self.vae_encoder = vae_encoder if train_vae else None
-        self.vae_lr_init = vae_lr
-        self.vae_optim = (
-            torch.optim.Adam(vae_encoder.parameters(), lr=vae_lr)
-            if (vae_encoder is not None and train_vae)
-            else None
-        )
-        self._vae_step_counter = 0
-        self._vae_save_path: str | None = None
+
 
     def _share_clone(self, module: nn.Module) -> nn.Module:
-        if self.shared_encoder is None:
-            return deepcopy(module)
-
-        enc = module.feature_extractor
-        module.feature_extractor = nn.Identity()
-        clone = deepcopy(module)
-        module.feature_extractor = enc
-        clone.feature_extractor = enc
-        return clone
+        return deepcopy(module)
 
     def forward(
         self,
@@ -192,15 +166,10 @@ class MAML_Learner(Base):
         """
 
         actor = self._share_clone(self.actor)
-        enc_param_ids = (
-            {id(p) for p in self.shared_encoder.parameters()}
-            if self.shared_encoder is not None
-            else set()
-        )
         optim = torch.optim.Adam(
             [
-                {"params": [p for p in actor.parameters() if id(p) not in enc_param_ids], "lr": self.lr},
-                {"params": [p for p in self.critic.parameters() if id(p) not in enc_param_ids], "lr": self.critic_lr},
+                {"params": actor.parameters(), "lr": self.lr},
+                {"params": self.critic.parameters(), "lr": self.critic_lr},
             ]
         )
 
@@ -279,38 +248,7 @@ class MAML_Learner(Base):
 
         total_timesteps += init_batch["states"].shape[0]
 
-        self._vae_step_counter += 1
-        vae_loss_val = 0.0
-        if self.vae_encoder is not None:
-            annealed_lr = self.vae_lr_init * max(0.1, 1.0 - learning_progress)
-            for pg in self.vae_optim.param_groups:
-                pg["lr"] = annealed_lr
 
-            raw_states_cpu = torch.as_tensor(init_batch["states"], dtype=self.dtype)
-            B = raw_states_cpu.shape[0]
-            mb = max(1, self.grad_batch_size)  # == minibatch_size
-            perm = torch.randperm(B)
-
-            vae_losses = []
-            for start in range(0, B, mb):  # one epoch == num_minibatch steps
-                idx = perm[start : start + mb]
-                mb_raw_states = self.preprocess_state(raw_states_cpu[idx])
-                vae_loss = self.vae_encoder.vae_loss(mb_raw_states)
-                self.vae_optim.zero_grad()
-                vae_loss.backward()
-                self.vae_optim.step()
-                vae_losses.append(vae_loss.item())
-            vae_loss_val = sum(vae_losses) / len(vae_losses)
-
-            if self._vae_save_path is None:
-                import os
-                _args = self.intrinsic_reward_fn.args
-                _env = _args.env_name.split("-")[0]
-                _seed = _args.seed
-                _dir = os.path.join("model", _env, "encoder")
-                os.makedirs(_dir, exist_ok=True)
-                self._vae_save_path = os.path.join(_dir, f"{_seed}.pth")
-            torch.save(self.vae_encoder.state_dict(), self._vae_save_path)
 
         loss_dict_list = []
         for j in range(self.num_exp_updates):
@@ -387,9 +325,7 @@ class MAML_Learner(Base):
         loss_dict[f"{self.name}/analytics/max_ext_returns"] = (
             self.perf_gains.max().item()
         )
-        if self.vae_encoder is not None:
-            loss_dict[f"{self.name}/loss/vae_loss"] = vae_loss_val
-            loss_dict[f"{self.name}/loss/vae_lr"] = self.vae_optim.param_groups[0]["lr"]
+
         loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
             self.wall_clock_time / 3600.0
         )

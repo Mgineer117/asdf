@@ -59,9 +59,7 @@ class IRPO_Learner(Base):
         gae: float = 0.95,
         anneal_kl: bool = False,
         device: str = "cpu",
-        vae_encoder=None,  # ConvVAEEncoder for Atari (pre-trained init)
-        vae_lr: float = 1e-4,  # fine-tune LR (pretrain uses 1e-3); annealed
-        train_vae: bool = True,  # True = keep fine-tuning the CNN via VAE loss
+
         grad_batch_size: int = 256,  # rows per create_graph grad / TRPO HVP minibatch
     ):
         super().__init__(device=device)
@@ -69,17 +67,7 @@ class IRPO_Learner(Base):
         self.name = "IRPO"
         self.device = device
 
-        # The encoder (if provided, i.e. Atari) is the single shared CNN. It is
-        # SHARED — not deep-copied — across the actor, all exploratory clones, and
-        # all critics, so the whole learner holds exactly ONE CNN regardless of
-        # num_options. _share_clone() relies on self.shared_encoder.
-        #
-        # Sharing is independent of whether the CNN is trained: the policy/value
-        # gradients are detached from the CNN (PPO_Actor/Critic detach_cnn=True),
-        # so per-clone IRPO updates leave the CNN untouched. The CNN is fine-tuned
-        # ONLY by the VAE objective (when train_vae=True), starting from the
-        # pre-trained weights loaded by the algorithm.
-        self.shared_encoder = vae_encoder
+
 
         # IRPO Optimization parameters
         self.base_policy_update_type = base_policy_update_type
@@ -108,8 +96,7 @@ class IRPO_Learner(Base):
         self.intrinsic_reward_fn = intrinsic_reward_fn
         self.num_options = self.intrinsic_reward_fn.num_rewards
 
-        # Critics — share the encoder so all 2*num_options critics reuse the
-        # single CNN; only their MLP heads are distinct.
+        # Critics
         self.ext_critics = nn.ModuleList(
             [self._share_clone(critic) for _ in range(self.num_options)]
         )
@@ -117,23 +104,16 @@ class IRPO_Learner(Base):
             [self._share_clone(critic) for _ in range(self.num_options)]
         )
 
-        # Critic optimizers must exclude the shared encoder params (by identity):
-        # the CNN is trained only by the VAE objective, never by the value loss.
-        enc_param_ids = (
-            {id(p) for p in self.shared_encoder.parameters()}
-            if self.shared_encoder is not None
-            else set()
-        )
         self.ext_critic_optim = [
             torch.optim.Adam(
-                [p for p in critic.parameters() if id(p) not in enc_param_ids],
+                critic.parameters(),
                 lr=self.critic_lr,
             )
             for critic in self.ext_critics
         ]
         self.int_critic_optim = [
             torch.optim.Adam(
-                [p for p in critic.parameters() if id(p) not in enc_param_ids],
+                critic.parameters(),
                 lr=self.critic_lr,
             )
             for critic in self.int_critics
@@ -156,18 +136,7 @@ class IRPO_Learner(Base):
         self.grad_batch_size = grad_batch_size
         self.to(self.dtype).to(self.device)
 
-        # Joint VAE fine-tuning: the shared CNN starts from pre-trained weights
-        # and keeps being trained by the VAE objective on incoming policy samples
-        # (every 5 learn() calls, on a minibatch). Set train_vae=False to freeze.
-        self.vae_encoder = vae_encoder if train_vae else None
-        self.vae_lr_init = vae_lr
-        self.vae_optim = (
-            torch.optim.Adam(vae_encoder.parameters(), lr=vae_lr)
-            if (vae_encoder is not None and train_vae)
-            else None
-        )
-        self._vae_step_counter = 0   # counts learn() calls; VAE runs every 5
-        self._vae_save_path: str | None = None
+
 
     def anneal_target_kl(self, learning_progress: float):
         # Optional: Anneal target KL over time (e.g., linearly decay)
@@ -188,27 +157,7 @@ class IRPO_Learner(Base):
         }
 
     def _share_clone(self, module: nn.Module) -> nn.Module:
-        """Clone an actor/critic, sharing the encoder instead of copying it.
-
-        Deep-copying a module with the CNN inside would duplicate the (large) CNN
-        for every option/clone — the dominant OOM source on image envs. Here we
-        temporarily detach the encoder, deep-copy only the small MLP head, then
-        re-attach the single shared encoder to both the original and the clone.
-
-        Sharing is safe whether or not the CNN is trained: policy/value gradients
-        are detached from it (detach_cnn=True), so per-clone updates leave it
-        unchanged; only the VAE optimizer (which holds this same instance) trains
-        the CNN.
-        """
-        if self.shared_encoder is None:
-            return deepcopy(module)
-
-        enc = module.feature_extractor
-        module.feature_extractor = nn.Identity()
-        clone = deepcopy(module)
-        module.feature_extractor = enc
-        clone.feature_extractor = enc
-        return clone
+        return deepcopy(module)
 
     def init_exp_policies(self):
         """
@@ -319,51 +268,7 @@ class IRPO_Learner(Base):
 
         total_timesteps += init_batch["states"].shape[0]
 
-        # VAE fine-tuning — the shared CNN (pre-trained init) is the only thing
-        # trained by this objective. Each IRPO iteration runs ONE epoch over the
-        # on-policy batch, split into minibatches of `grad_batch_size`
-        # (== minibatch_size, i.e. num_minibatch steps per epoch). The LR starts
-        # at vae_lr (1e-4) and is linearly annealed over training. The CNN is
-        # detached from the policy/value losses (detach_cnn) so IRPO's
-        # create_graph=True never touches the CNN graph, and the single shared
-        # instance keeps the learner to exactly one CNN.
-        self._vae_step_counter += 1
-        vae_loss_val = 0.0
-        if self.vae_encoder is not None:
-            # Linearly anneal VAE LR from vae_lr_init down to 10 % of it.
-            annealed_lr = self.vae_lr_init * max(0.1, 1.0 - learning_progress)
-            for pg in self.vae_optim.param_groups:
-                pg["lr"] = annealed_lr
 
-            # VAE inputs kept on CPU until minibatched
-            raw_states_cpu = torch.as_tensor(init_batch["states"], dtype=self.dtype)
-            B = raw_states_cpu.shape[0]
-            mb = max(1, self.grad_batch_size)  # == minibatch_size
-            perm = torch.randperm(B)
-
-            vae_losses = []
-            for start in range(0, B, mb):  # one epoch == num_minibatch steps
-                idx = perm[start : start + mb]
-                mb_raw_states = self.preprocess_state(raw_states_cpu[idx])
-                vae_loss = self.vae_encoder.vae_loss(mb_raw_states)
-                self.vae_optim.zero_grad()
-                vae_loss.backward()
-                self.vae_optim.step()
-                vae_losses.append(vae_loss.item())
-            vae_loss_val = sum(vae_losses) / len(vae_losses)
-
-            # Checkpoint the jointly-tuned encoder (int_reward_type=random). Note:
-            # random pretrains a fresh encoder each run and never loads this file;
-            # it's kept only as a recoverable artifact of the run.
-            if self._vae_save_path is None:
-                import os
-                _args = self.intrinsic_reward_fn.args
-                _env = _args.env_name.split("-")[0]
-                _seed = _args.seed
-                _dir = os.path.join("model", _env, "encoder")
-                os.makedirs(_dir, exist_ok=True)
-                self._vae_save_path = os.path.join(_dir, f"{_seed}.pth")
-            torch.save(self.vae_encoder.state_dict(), self._vae_save_path)
 
         loss_dict_list = []
         # Cache the latest exploratory-rollout batches keyed by option index so
@@ -505,9 +410,7 @@ class IRPO_Learner(Base):
         loss_dict[f"{self.name}/analytics/max_ext_returns"] = (
             self.perf_gains.max().item()
         )
-        if self.vae_encoder is not None:
-            loss_dict[f"{self.name}/loss/vae_loss"] = vae_loss_val
-            loss_dict[f"{self.name}/loss/vae_lr"] = self.vae_optim.param_groups[0]["lr"]
+
         loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
             self.wall_clock_time / 3600.0
         )
