@@ -13,6 +13,8 @@ echo "[SUBMIT] scripts/bankheist_ppo.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_ppo.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -20,6 +22,8 @@ echo "[SUBMIT] scripts/bankheist_irpo.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_irpo.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -27,6 +31,8 @@ echo "[SUBMIT] scripts/bankheist_maml.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_maml.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -34,6 +40,8 @@ echo "[SUBMIT] scripts/bankheist_hrl.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_hrl.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -41,6 +49,8 @@ echo "[SUBMIT] scripts/bankheist_drnd.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_drnd.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -48,6 +58,8 @@ echo "[SUBMIT] scripts/bankheist_trpo.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_trpo.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -55,6 +67,8 @@ echo "[SUBMIT] scripts/bankheist_psne.sbatch"
 OUTPUT=$(sbatch scripts/bankheist_psne.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 

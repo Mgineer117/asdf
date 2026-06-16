@@ -106,6 +106,8 @@ for env in envs:
 OUTPUT=$(sbatch scripts/{env}_{algo}.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 
@@ -143,6 +145,8 @@ echo "========================================================="
 OUTPUT=$(sbatch scripts/{env}_{algo}.sbatch)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start
 sleep 0.5
 

@@ -20,4 +20,6 @@ echo "Submitting 20 parallel agents (10 per GPU) to IllinoisComputes-GPU on 2 GP
 OUTPUT=$(sbatch sweep_worker.sbatch $SWEEP_ID)
 echo "$OUTPUT"
 JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
 squeue -j $JOBID --start

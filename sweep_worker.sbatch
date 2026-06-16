@@ -4,8 +4,8 @@
 #SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=20
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=192G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=128G
 #SBATCH --gres=gpu:2
 #SBATCH --time=3-00:00:00
 #SBATCH --nice=0
