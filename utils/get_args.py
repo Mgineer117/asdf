@@ -39,8 +39,17 @@ def override_args(init_args):
             setattr(args, k, v)
 
     atari_envs = ["pacman", "amidar", "bankheist", "alien"]
-    if config_env_name in atari_envs and getattr(args, "atari_learning_rate", None) is not None:
-        args.learning_rate = args.atari_learning_rate
+    env_name, _, _ = args.env_name.partition("-")
+    
+    # Resolve activation logic
+    if getattr(args, "actor_activation", None) is None:
+        args.actor_activation = args.atari_activation if env_name in atari_envs else args.activation
+    if getattr(args, "critic_activation", None) is None:
+        args.critic_activation = args.atari_activation if env_name in atari_envs else args.activation
+
+    if env_name in atari_envs:
+        if getattr(args, "atari_learning_rate", None) is not None:
+            args.learning_rate = args.atari_learning_rate
 
     return args
 
@@ -148,10 +157,16 @@ def get_args():
         help="Learning rate for Atari environments",
     )
     parser.add_argument(
-        "--actor-activation",
+        "--activation",
         type=str,
-        default="relu",
-        help="Activation function shared by actor and critic networks (relu, elu, or tanh).",
+        default="tanh",
+        help="Activation function shared by actor and critic networks for non-Atari envs.",
+    )
+    parser.add_argument(
+        "--atari-activation",
+        type=str,
+        default="elu",
+        help="Activation function shared by actor and critic networks for Atari envs.",
     )
     parser.add_argument(
         "--override-results",

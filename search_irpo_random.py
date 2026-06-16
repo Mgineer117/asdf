@@ -23,7 +23,6 @@ def train():
     args.irpo_type = "irpo"
     args.int_reward_type = "random"
     args.env_name = "pacman"
-    args.actor_activation = "elu"
     
     # Override args from config files (e.g., set minibatch_size)
     args = override_args(args)
