@@ -10,115 +10,199 @@ echo " running 5 seeds across 1 GPU."
 echo "========================================================="
 
 echo "[SUBMIT] scripts/pacman_ppo.sbatch"
-sbatch scripts/pacman_ppo.sbatch
+OUTPUT=$(sbatch scripts/pacman_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/pacman_irpo.sbatch"
-sbatch scripts/pacman_irpo.sbatch
+OUTPUT=$(sbatch scripts/pacman_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/pacman_maml.sbatch"
-sbatch scripts/pacman_maml.sbatch
+OUTPUT=$(sbatch scripts/pacman_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/pacman_hrl.sbatch"
-sbatch scripts/pacman_hrl.sbatch
+OUTPUT=$(sbatch scripts/pacman_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/pacman_drnd.sbatch"
-sbatch scripts/pacman_drnd.sbatch
+OUTPUT=$(sbatch scripts/pacman_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/pacman_trpo.sbatch"
-sbatch scripts/pacman_trpo.sbatch
+OUTPUT=$(sbatch scripts/pacman_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/pacman_psne.sbatch"
-sbatch scripts/pacman_psne.sbatch
+OUTPUT=$(sbatch scripts/pacman_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_ppo.sbatch"
-sbatch scripts/amidar_ppo.sbatch
+OUTPUT=$(sbatch scripts/amidar_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_irpo.sbatch"
-sbatch scripts/amidar_irpo.sbatch
+OUTPUT=$(sbatch scripts/amidar_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_maml.sbatch"
-sbatch scripts/amidar_maml.sbatch
+OUTPUT=$(sbatch scripts/amidar_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_hrl.sbatch"
-sbatch scripts/amidar_hrl.sbatch
+OUTPUT=$(sbatch scripts/amidar_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_drnd.sbatch"
-sbatch scripts/amidar_drnd.sbatch
+OUTPUT=$(sbatch scripts/amidar_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_trpo.sbatch"
-sbatch scripts/amidar_trpo.sbatch
+OUTPUT=$(sbatch scripts/amidar_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_psne.sbatch"
-sbatch scripts/amidar_psne.sbatch
+OUTPUT=$(sbatch scripts/amidar_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_ppo.sbatch"
-sbatch scripts/bankheist_ppo.sbatch
+OUTPUT=$(sbatch scripts/bankheist_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_irpo.sbatch"
-sbatch scripts/bankheist_irpo.sbatch
+OUTPUT=$(sbatch scripts/bankheist_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_maml.sbatch"
-sbatch scripts/bankheist_maml.sbatch
+OUTPUT=$(sbatch scripts/bankheist_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_hrl.sbatch"
-sbatch scripts/bankheist_hrl.sbatch
+OUTPUT=$(sbatch scripts/bankheist_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_drnd.sbatch"
-sbatch scripts/bankheist_drnd.sbatch
+OUTPUT=$(sbatch scripts/bankheist_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_trpo.sbatch"
-sbatch scripts/bankheist_trpo.sbatch
+OUTPUT=$(sbatch scripts/bankheist_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/bankheist_psne.sbatch"
-sbatch scripts/bankheist_psne.sbatch
+OUTPUT=$(sbatch scripts/bankheist_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_ppo.sbatch"
-sbatch scripts/alien_ppo.sbatch
+OUTPUT=$(sbatch scripts/alien_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_irpo.sbatch"
-sbatch scripts/alien_irpo.sbatch
+OUTPUT=$(sbatch scripts/alien_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_maml.sbatch"
-sbatch scripts/alien_maml.sbatch
+OUTPUT=$(sbatch scripts/alien_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_hrl.sbatch"
-sbatch scripts/alien_hrl.sbatch
+OUTPUT=$(sbatch scripts/alien_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_drnd.sbatch"
-sbatch scripts/alien_drnd.sbatch
+OUTPUT=$(sbatch scripts/alien_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_trpo.sbatch"
-sbatch scripts/alien_trpo.sbatch
+OUTPUT=$(sbatch scripts/alien_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_psne.sbatch"
-sbatch scripts/alien_psne.sbatch
+OUTPUT=$(sbatch scripts/alien_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "========================================================="

@@ -102,7 +102,14 @@ echo "========================================================="
 
 for env in envs:
     for algo in algos:
-        submit_content += f'echo "[SUBMIT] scripts/{env}_{algo}.sbatch"\nsbatch scripts/{env}_{algo}.sbatch\nsleep 0.5\n\n'
+        submit_content += f"""echo "[SUBMIT] scripts/{env}_{algo}.sbatch"
+OUTPUT=$(sbatch scripts/{env}_{algo}.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
+sleep 0.5
+
+"""
 
 submit_content += f"""echo "========================================================="
 echo " All {len(envs) * len(algos)} jobs successfully submitted to queue!"
@@ -132,7 +139,14 @@ echo "========================================================="
 
 """
     for algo in algos:
-        env_submit_content += f'echo "[SUBMIT] scripts/{env}_{algo}.sbatch"\nsbatch scripts/{env}_{algo}.sbatch\nsleep 0.5\n\n'
+        env_submit_content += f"""echo "[SUBMIT] scripts/{env}_{algo}.sbatch"
+OUTPUT=$(sbatch scripts/{env}_{algo}.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
+sleep 0.5
+
+"""
 
     env_submit_content += f"""echo "========================================================="
 echo " All {len(algos)} jobs for {env} successfully submitted to queue!"

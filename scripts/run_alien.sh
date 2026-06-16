@@ -10,31 +10,52 @@ echo " running 5 seeds (0-4) across 1 GPU."
 echo "========================================================="
 
 echo "[SUBMIT] scripts/alien_ppo.sbatch"
-sbatch scripts/alien_ppo.sbatch
+OUTPUT=$(sbatch scripts/alien_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_irpo.sbatch"
-sbatch scripts/alien_irpo.sbatch
+OUTPUT=$(sbatch scripts/alien_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_maml.sbatch"
-sbatch scripts/alien_maml.sbatch
+OUTPUT=$(sbatch scripts/alien_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_hrl.sbatch"
-sbatch scripts/alien_hrl.sbatch
+OUTPUT=$(sbatch scripts/alien_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_drnd.sbatch"
-sbatch scripts/alien_drnd.sbatch
+OUTPUT=$(sbatch scripts/alien_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_trpo.sbatch"
-sbatch scripts/alien_trpo.sbatch
+OUTPUT=$(sbatch scripts/alien_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/alien_psne.sbatch"
-sbatch scripts/alien_psne.sbatch
+OUTPUT=$(sbatch scripts/alien_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "========================================================="

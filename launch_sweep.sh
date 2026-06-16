@@ -17,5 +17,7 @@ fi
 echo "Successfully created sweep ID: $SWEEP_ID"
 echo "Submitting 20 parallel agents (10 per GPU) to IllinoisComputes-GPU on 2 GPUs..."
 
-# Pass the sweep ID to the sbatch array script
-sbatch sweep_worker.sbatch $SWEEP_ID
+OUTPUT=$(sbatch sweep_worker.sbatch $SWEEP_ID)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start

@@ -10,31 +10,52 @@ echo " running 5 seeds (0-4) across 1 GPU."
 echo "========================================================="
 
 echo "[SUBMIT] scripts/amidar_ppo.sbatch"
-sbatch scripts/amidar_ppo.sbatch
+OUTPUT=$(sbatch scripts/amidar_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_irpo.sbatch"
-sbatch scripts/amidar_irpo.sbatch
+OUTPUT=$(sbatch scripts/amidar_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_maml.sbatch"
-sbatch scripts/amidar_maml.sbatch
+OUTPUT=$(sbatch scripts/amidar_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_hrl.sbatch"
-sbatch scripts/amidar_hrl.sbatch
+OUTPUT=$(sbatch scripts/amidar_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_drnd.sbatch"
-sbatch scripts/amidar_drnd.sbatch
+OUTPUT=$(sbatch scripts/amidar_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_trpo.sbatch"
-sbatch scripts/amidar_trpo.sbatch
+OUTPUT=$(sbatch scripts/amidar_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "[SUBMIT] scripts/amidar_psne.sbatch"
-sbatch scripts/amidar_psne.sbatch
+OUTPUT=$(sbatch scripts/amidar_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+squeue -j $JOBID --start
 sleep 0.5
 
 echo "========================================================="
