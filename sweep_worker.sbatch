@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=irpo_sweep
 #SBATCH --partition=IllinoisComputes-GPU
+#SBATCH --account=huytran1-ic
 #SBATCH --gpus=h200:1
 #SBATCH --array=1-10
 #SBATCH --nice=0
