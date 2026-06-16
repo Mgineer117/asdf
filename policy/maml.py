@@ -206,6 +206,10 @@ class MAML_Learner(Base):
             optim.zero_grad()
             mb_size = self.grad_batch_size
             B = states.shape[0]
+
+            device_type = "cuda" if "cuda" in str(self.device) else "cpu"
+            use_amp = (device_type == "cuda")
+
             for start in range(0, B, mb_size):
                 end = min(start + mb_size, B)
                 weight = (end - start) / B
@@ -216,9 +220,10 @@ class MAML_Learner(Base):
                 mb_advantages = advantages[start:end].to(self.device)
                 mb_returns = returns[start:end].to(self.device)
                 
-                a_loss = self.actor_loss(actor, mb_states, mb_actions, mb_advantages)
-                c_loss = self.critic_loss(self.critic, mb_states, mb_returns)
-                loss = (a_loss + c_loss) * weight
+                with torch.autocast(device_type=device_type, enabled=use_amp):
+                    a_loss = self.actor_loss(actor, mb_states, mb_actions, mb_advantages)
+                    c_loss = self.critic_loss(self.critic, mb_states, mb_returns)
+                    loss = (a_loss + c_loss) * weight
                 loss.backward()
                 
             nn.utils.clip_grad_norm_(actor.parameters(), max_norm=0.5)
@@ -390,13 +395,17 @@ class MAML_Learner(Base):
         optim = self.critic_optim[i]
         losses = []
 
+        device_type = "cuda" if "cuda" in str(self.device) else "cpu"
+        use_amp = (device_type == "cuda")
+
         # Loop over the dataset multiple times (epochs)
         critic_epochs = 5  # Number of passes over the data
         for _ in range(critic_epochs):
             def critic_loss_fn(s, _, r):
                 s = self.preprocess_state(s)
                 r = r.to(self.device)
-                return self.critic_loss(critic, s, r)
+                with torch.autocast(device_type=device_type, enabled=use_amp):
+                    return self.critic_loss(critic, s, r)
 
             from utils.rl import average_loss_across_minibatches
             avg_loss = average_loss_across_minibatches(
@@ -427,7 +436,8 @@ class MAML_Learner(Base):
             self.sync_obs_rms_to(actor, self.critics[i])
             a = a.to(self.device)
             adv = adv.to(self.device)
-            return self.actor_loss(actor, s, a, adv)
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                return self.actor_loss(actor, s, a, adv)
 
         gradients = average_gradients_across_minibatches(
             actor,
@@ -446,9 +456,10 @@ class MAML_Learner(Base):
 
         with torch.no_grad():
             from utils.rl import average_loss_across_minibatches
-            actor_loss_log = average_loss_across_minibatches(
-                actor_loss_fn, states, actions, advantages, self.grad_batch_size
-            )
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                actor_loss_log = average_loss_across_minibatches(
+                    actor_loss_fn, states, actions, advantages, self.grad_batch_size
+                )
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss_log.item(),

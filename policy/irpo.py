@@ -584,12 +584,16 @@ class IRPO_Learner(Base):
         # memory low by only storing one create_graph=True graph at a time.
         from utils.rl import average_gradients_across_minibatches, average_loss_across_minibatches
 
+        device_type = "cuda" if "cuda" in str(self.device) else "cpu"
+        use_amp = (device_type == "cuda")
+
         # --- Compute gradients ---
         def actor_loss_fn(s, a, adv):
             s = self.preprocess_state(s)
             a = a.to(self.device)
             adv = adv.to(self.device)
-            return self.actor_loss(exp_actor, s, a, adv)
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                return self.actor_loss(exp_actor, s, a, adv)
 
         actor_gradients = average_gradients_across_minibatches(
             exp_actor,
@@ -601,7 +605,7 @@ class IRPO_Learner(Base):
             create_graph=True,
         )
 
-        gradients = [g.detach() for g in actor_gradients]
+        gradients = actor_gradients
 
         with torch.no_grad():
             for p, g in zip(exp_actor.parameters(), gradients):
@@ -612,7 +616,8 @@ class IRPO_Learner(Base):
         def ext_critic_loss_fn(s, _, r):
             s = self.preprocess_state(s)
             r = r.to(self.device)
-            return self.critic_loss(self.ext_critics[i], s, r)
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                return self.critic_loss(self.ext_critics[i], s, r)
 
         ext_critic_loss = average_loss_across_minibatches(
             ext_critic_loss_fn, states, None, ext_returns, self.grad_batch_size
@@ -625,7 +630,8 @@ class IRPO_Learner(Base):
         def int_critic_loss_fn(s, _, r):
             s = self.preprocess_state(s)
             r = r.to(self.device)
-            return self.critic_loss(self.int_critics[i], s, r)
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                return self.critic_loss(self.int_critics[i], s, r)
 
         int_critic_loss = average_loss_across_minibatches(
             int_critic_loss_fn, states, None, int_returns, self.grad_batch_size
@@ -640,9 +646,10 @@ class IRPO_Learner(Base):
 
         # Compute actor loss on full batch for logging
         with torch.no_grad():
-            actor_loss_log = average_loss_across_minibatches(
-                actor_loss_fn, states, actions, advantages, self.grad_batch_size
-            )
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                actor_loss_log = average_loss_across_minibatches(
+                    actor_loss_fn, states, actions, advantages, self.grad_batch_size
+                )
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss_log.item(),
@@ -905,6 +912,9 @@ class IRPO_G_Learner(IRPO_Learner):
         critic_epochs, num_minibatches = 5, 4
         mb_size = max(1, batch_size // num_minibatches)
 
+        device_type = "cuda" if "cuda" in str(self.device) else "cpu"
+        use_amp = (device_type == "cuda")
+
         ext_critic = self.ext_critics[i]
         ext_optim = self.ext_critic_optim[i]
         int_critic = self.int_critics[i]
@@ -915,12 +925,14 @@ class IRPO_G_Learner(IRPO_Learner):
             perm = torch.randperm(batch_size)
             for start in range(0, batch_size, mb_size):
                 idx = perm[start : start + mb_size]
-                ext_loss = self.critic_loss(ext_critic, states[idx], ext_returns[idx])
+                with torch.autocast(device_type=device_type, enabled=use_amp):
+                    ext_loss = self.critic_loss(ext_critic, states[idx], ext_returns[idx])
                 ext_optim.zero_grad()
                 ext_loss.backward()
                 ext_optim.step()
                 ext_losses.append(ext_loss.item())
-                int_loss = self.critic_loss(int_critic, states[idx], int_returns[idx])
+                with torch.autocast(device_type=device_type, enabled=use_amp):
+                    int_loss = self.critic_loss(int_critic, states[idx], int_returns[idx])
                 int_optim.zero_grad()
                 int_loss.backward()
                 int_optim.step()
@@ -952,7 +964,8 @@ class IRPO_G_Learner(IRPO_Learner):
                     mb_adv = advantages[mask]
                     mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
 
-                    loss_c = self.actor_loss(actor, mb_states, mb_actions, mb_adv)
+                    with torch.autocast(device_type=device_type, enabled=use_amp):
+                        loss_c = self.actor_loss(actor, mb_states, mb_actions, mb_adv)
                     grads_c = torch.autograd.grad(
                         loss_c,
                         tuple(actor.parameters()),
@@ -974,7 +987,8 @@ class IRPO_G_Learner(IRPO_Learner):
         elif per_goal_grads is not None and len(per_goal_grads) == 1:
             gradients = per_goal_grads[0]
         else:
-            actor_loss_full = self.actor_loss(actor, states, actions, advantages_norm)
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                actor_loss_full = self.actor_loss(actor, states, actions, advantages_norm)
             gradients = torch.autograd.grad(
                 actor_loss_full,
                 tuple(actor.parameters()),
@@ -994,9 +1008,10 @@ class IRPO_G_Learner(IRPO_Learner):
             self.final_exp_policies[i] = actor_clone
 
         with torch.no_grad():
-            actor_loss_val = self.actor_loss(
-                actor, states, actions, advantages_norm
-            ).item()
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                actor_loss_val = self.actor_loss(
+                    actor, states, actions, advantages_norm
+                ).item()
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss_val,

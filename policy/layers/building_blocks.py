@@ -90,6 +90,7 @@ class CNN(nn.Module):
         input_shape: tuple[int, int, int],
         features_dim: int = 512,
         initialization: str = "actor",
+        activation: nn.Module = nn.ReLU(),
         device=torch.device("cpu"),
     ):
         super().__init__()
@@ -98,11 +99,11 @@ class CNN(nn.Module):
 
         self.cnn = nn.Sequential(
             nn.Conv2d(n_input_channels, 16, kernel_size=8, stride=4, padding=0),
-            nn.ReLU(),
+            activation,
             nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=0),
-            nn.ReLU(),
+            activation,
             nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
+            activation,
             nn.Flatten(),
         )
 
@@ -114,7 +115,7 @@ class CNN(nn.Module):
         # Made the linear head deeper here
         self.linear = nn.Sequential(
             nn.Linear(self.n_flatten, features_dim),
-            nn.ReLU(),
+            activation,
         )
         self.output_dim = features_dim
 
@@ -158,6 +159,7 @@ class ConvVAEEncoder(nn.Module):
         self,
         input_shape: tuple,
         latent_dim: int = 256,
+        activation: nn.Module = nn.ReLU(),
         device=torch.device("cpu"),
     ):
         super().__init__()
@@ -168,11 +170,11 @@ class ConvVAEEncoder(nn.Module):
         C = input_shape[0]
         self.cnn = nn.Sequential(
             nn.Conv2d(C, 16, kernel_size=8, stride=4, padding=0),
-            nn.ReLU(),
+            activation,
             nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=0),
-            nn.ReLU(),
+            activation,
             nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
+            activation,
             nn.Flatten(),
         )
 
@@ -191,9 +193,9 @@ class ConvVAEEncoder(nn.Module):
         self.decoder_project = nn.Linear(latent_dim, Cs * Hs * Ws)
         self.decoder_deconv = nn.Sequential(
             nn.ConvTranspose2d(Cs, 32, kernel_size=3, stride=1),
-            nn.ReLU(),
+            activation,
             nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, output_padding=1),
-            nn.ReLU(),
+            activation,
             nn.ConvTranspose2d(16, C, kernel_size=8, stride=4),
             nn.Sigmoid(),
         )

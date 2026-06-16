@@ -12,8 +12,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-# Make sure to import your CNN and MLP building blocks
 from policy.layers.building_blocks import CNN, MLP
+from utils.functions import build_activation
 from utils.get_envs import get_env
 from utils.sampler import OnlineSampler
 from utils.wrapper import RunningMeanStd
@@ -69,7 +69,7 @@ class AtariFeatureNet(nn.Module):
     loss) and its weights are saved as the FROZEN encoder the IRPO policy loads.
     """
 
-    def __init__(self, chw_shape, feature_dim, device, cnn_features_dim=ATARI_ENCODER_DIM, backbone=None):
+    def __init__(self, chw_shape, feature_dim, device, cnn_features_dim=ATARI_ENCODER_DIM, backbone=None, activation=nn.ReLU()):
         super().__init__()
 
         self.feature_dim = feature_dim
@@ -81,6 +81,7 @@ class AtariFeatureNet(nn.Module):
             input_shape=chw_shape,
             features_dim=cnn_features_dim,
             initialization="default",
+            activation=activation,
             device=device,
         )
 
@@ -92,7 +93,7 @@ class AtariFeatureNet(nn.Module):
                 input_dim=cnn_features_dim,
                 hidden_dims=[512, 512, 512],
                 output_dim=feature_dim,
-                activation=nn.Tanh(),
+                activation=activation,
                 device=device,
             )
 
@@ -338,6 +339,9 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
         from extractor.base.mlp import NeuralNet
         from extractor.extractor import ALLO as Random
 
+        activation = build_activation(getattr(self.args, "actor_activation", "elu"))
+        encoder_fc_dim = [512, 512, 512, 512]
+
         # === CREATE FEATURE EXTRACTOR === #
         if isinstance(self.input_shape, (tuple, list)) and len(self.input_shape) == 3:
             # RGB Image State: Use the Custom CNN Wrapper
@@ -346,8 +350,8 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             backbone = NeuralNet(
                 state_dim=(ATARI_ENCODER_DIM,),
                 feature_dim=self.args.feature_dim,
-                encoder_fc_dim=[128, 128],
-                activation=nn.LeakyReLU(),
+                encoder_fc_dim=encoder_fc_dim,
+                activation=activation,
                 device=self.args.device,
             )
             feature_network = AtariFeatureNet(
@@ -355,6 +359,7 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
                 feature_dim=self.args.feature_dim,
                 device=self.args.device,
                 backbone=backbone,
+                activation=activation,
             )
             # Since we are using images, pos_idx slicing is disabled
             extractor_pos_idx = None
@@ -366,8 +371,8 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             backbone = NeuralNet(
                 state_dim=(ATARI_ENCODER_DIM,),
                 feature_dim=self.args.feature_dim,
-                encoder_fc_dim=[128, 128],
-                activation=nn.LeakyReLU(),
+                encoder_fc_dim=encoder_fc_dim,
+                activation=activation,
                 device=self.args.device,
             )
             feature_network = AtariFeatureNet(
@@ -375,6 +380,7 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
                 feature_dim=self.args.feature_dim,
                 device=self.args.device,
                 backbone=backbone,
+                activation=activation,
             )
             # Since we are using images, pos_idx slicing is disabled
             extractor_pos_idx = None
@@ -384,8 +390,8 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
             feature_network = NeuralNet(
                 state_dim=len(self.args.pos_idx),
                 feature_dim=self.args.feature_dim,
-                encoder_fc_dim=[128, 128],
-                activation=nn.LeakyReLU(),
+                encoder_fc_dim=encoder_fc_dim,
+                activation=activation,
             )
             extractor_pos_idx = self.args.pos_idx
 
@@ -537,6 +543,9 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         if not os.path.exists(f"model/{model_env_name}"):
             os.makedirs(f"model/{model_env_name}")
 
+        activation = build_activation(getattr(self.args, "actor_activation", "elu"))
+        encoder_fc_dim = [512, 512, 512, 512]
+
         # === CREATE FEATURE EXTRACTOR === #
         # Tracks the CNN visual encoder for image envs so it can be saved as the
         # frozen encoder the IRPO policy loads (None for vector envs).
@@ -554,8 +563,8 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             backbone = NeuralNet(
                 state_dim=(ATARI_ENCODER_DIM,),
                 feature_dim=self.args.feature_dim,
-                encoder_fc_dim=[512, 512, 512, 512],
-                activation=nn.LeakyReLU(),
+                encoder_fc_dim=encoder_fc_dim,
+                activation=activation,
                 device=self.args.device,
             )
             feature_network = AtariFeatureNet(
@@ -563,6 +572,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 feature_dim=self.args.feature_dim,
                 device=self.args.device,
                 backbone=backbone,
+                activation=activation,
             )
             self._allo_pixel_encoder = feature_network.cnn
             extractor_pos_idx = None
@@ -571,8 +581,8 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             feature_network = NeuralNet(
                 state_dim=len(self.args.pos_idx),
                 feature_dim=self.args.feature_dim,
-                encoder_fc_dim=[512, 512, 512, 512],
-                activation=nn.LeakyReLU(),
+                encoder_fc_dim=encoder_fc_dim,
+                activation=activation,
             )
             extractor_pos_idx = self.args.pos_idx
 

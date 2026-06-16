@@ -150,8 +150,8 @@ def get_args():
     parser.add_argument(
         "--actor-activation",
         type=str,
-        default="tanh",
-        help="Activation function shared by actor and critic networks (relu or tanh).",
+        default="relu",
+        help="Activation function shared by actor and critic networks (relu, elu, or tanh).",
     )
     parser.add_argument(
         "--override-results",

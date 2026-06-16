@@ -57,7 +57,7 @@ class PPO_Actor(Base):
 
             cnn_features_dim = 256
             self.feature_extractor = CNN(
-                input_shape=chw_shape, features_dim=cnn_features_dim, device=device
+                input_shape=chw_shape, features_dim=cnn_features_dim, activation=activation, device=device
             )
             mlp_input_dim = cnn_features_dim
 
@@ -67,7 +67,7 @@ class PPO_Actor(Base):
 
             cnn_features_dim = 256
             self.feature_extractor = CNN(
-                input_shape=chw_shape, features_dim=cnn_features_dim, device=device
+                input_shape=chw_shape, features_dim=cnn_features_dim, activation=activation, device=device
             )
             mlp_input_dim = cnn_features_dim
 
@@ -255,6 +255,7 @@ class PPO_Critic(Base):
                 input_shape=chw_shape,
                 features_dim=cnn_features_dim,
                 initialization="critic",
+                activation=activation,
                 device=device,
             )
             mlp_input_dim = cnn_features_dim
@@ -268,6 +269,7 @@ class PPO_Critic(Base):
                 input_shape=chw_shape,
                 features_dim=cnn_features_dim,
                 initialization="critic",
+                activation=activation,
                 device=device,
             )
             mlp_input_dim = cnn_features_dim
