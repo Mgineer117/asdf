@@ -14,6 +14,12 @@ for i in "${!ENVS[@]}"; do
     
     # Run the training script in the background, redirecting output to a log file
     python train_models.py --env $ENV --gpu-idx $GPU > "log_${ENV}_allo.out" 2>&1 &
+    
+    # Sleep for 5 minutes before launching the next one, except for the last environment
+    if [ $i -lt $((${#ENVS[@]} - 1)) ]; then
+        echo "  -> Sleeping for 5 minutes to prevent RAM bottleneck..."
+        sleep 300
+    fi
 done
 
 echo "All 4 jobs have been launched in the background!"
