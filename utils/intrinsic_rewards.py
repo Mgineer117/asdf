@@ -667,14 +667,19 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 epochs = max_epoch  # set current epoch
 
         if epochs < self.args.extractor_epochs:
+            # Reduce RAM usage for image-based (Atari) states by halving the buffer size
+            is_image_state = isinstance(self.input_shape, (tuple, list)) and len(self.input_shape) in (2, 3)
+            default_total_samples = 100_000 if is_image_state else 200_000
+            default_collect_batch = 10_000 if is_image_state else 20_000
+
             total_target_samples = int(
-                getattr(self.args, "extractor_total_samples", 200_000)
+                getattr(self.args, "extractor_total_samples", default_total_samples)
             )
             total_target_samples = max(1, total_target_samples)
             collect_batch_size = int(
-                getattr(self.args, "extractor_collect_batch_size", 20_000)
+                getattr(self.args, "extractor_collect_batch_size", default_collect_batch)
             )
-            collect_batch_size = max(10_000, min(50_000, collect_batch_size))
+            collect_batch_size = max(5_000, min(50_000, collect_batch_size))
             collect_loops = ceil(total_target_samples / collect_batch_size)
 
             uniform_random_policy = UniformRandom(
