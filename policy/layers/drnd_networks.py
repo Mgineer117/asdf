@@ -51,6 +51,9 @@ class DRNDModel(Base):
         self.to(device)
 
     def forward(self, next_obs: torch.Tensor):
+        if next_obs.dim() > 2:
+            next_obs = next_obs.reshape(next_obs.size(0), -1)
+            
         # Predict the next state features and target features
         predict_feature = self.predictor(next_obs)
 

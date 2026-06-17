@@ -74,8 +74,9 @@ class DRND_Algorithm(nn.Module):
         feature_dim = (
             self.args.feature_dim if self.args.feature_dim else self.args.state_dim
         )
+        input_dim = len(self.args.pos_idx) if getattr(self.args, "pos_idx", None) is not None else self.args.state_dim
         drnd_model = DRNDModel(
-            input_dim=len(self.args.pos_idx),
+            input_dim=input_dim,
             output_dim=feature_dim,
             num=10,
             device=self.args.device,

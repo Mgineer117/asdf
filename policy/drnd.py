@@ -107,9 +107,11 @@ class DRND_Learner(Base):
 
     def intrinsic_reward(self, next_states: torch.Tensor):
         with torch.no_grad():
-            predict_next_feature, target_next_feature = self.drnd(
-                next_states[:, self.positional_indices]
-            )
+            if self.positional_indices is not None:
+                drnd_input = next_states[:, self.positional_indices]
+            else:
+                drnd_input = next_states
+            predict_next_feature, target_next_feature = self.drnd(drnd_input)
 
             mu = torch.mean(target_next_feature, axis=0)
             B2 = torch.mean(target_next_feature**2, axis=0)
@@ -359,9 +361,11 @@ class DRND_Learner(Base):
 
     def drnd_loss(self, next_states: torch.Tensor):
         """Curiosity-driven(Distributional Random Network Distillation)"""
-        predict_next_state_feature, target_next_state_feature = self.drnd(
-            next_states[:, self.positional_indices]
-        )
+        if self.positional_indices is not None:
+            drnd_input = next_states[:, self.positional_indices]
+        else:
+            drnd_input = next_states
+        predict_next_state_feature, target_next_state_feature = self.drnd(drnd_input)
         idx = torch.randint(high=self.drnd.num_target, size=(next_states.shape[0],))
         with torch.no_grad():
             target = target_next_state_feature[
