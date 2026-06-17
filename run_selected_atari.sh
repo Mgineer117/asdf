@@ -1,77 +1,268 @@
 #!/bin/bash
 
-# Create necessary directories locally
-mkdir -p logs
-mkdir -p scripts
-
-echo "========================================================="
-echo " Submitting PSNE, PPO, TRPO, DRND for 4 Atari envs to eng-research-gpu"
-echo " Time limit: 2-00:00:00"
-echo "========================================================="
-
-ENVS=("pacman" "amidar" "bankheist" "alien")
-ALGOS=("psne" "ppo" "trpo" "drnd")
-
-for env in "${ENVS[@]}"; do
-    for algo in "${ALGOS[@]}"; do
-        
-        JOB_FILE="scripts/${env}_${algo}_eng_gpu.sbatch"
-        
-        cat <<EOF > "$JOB_FILE"
-#!/bin/bash
-#SBATCH --job-name=${env}_${algo}
-#SBATCH --account=huytran1-ic
-#SBATCH --partition=eng-research-gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks=5
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=192G
-#SBATCH --gres=gpu:1
-#SBATCH --time=2-00:00:00
-#SBATCH --output=logs/${env}_${algo}.o%j
-#SBATCH --mail-type=FAIL
-#SBATCH --mail-user=minjae5@illinois.edu
-
-ulimit -n 4096  # raise file descriptor limit
-
-# 1. Block Python from reading ~/.local/lib to prevent cross-contamination (CRITICAL)
-export PYTHONNOUSERSITE=1
-
-# 2. Hook conda into the non-interactive shell
-eval "\$(conda shell.bash hook)"
-
-# 3. Add MuJoCo and NVIDIA to path
-export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/u/minjae5/.mujoco/mujoco210/bin
-export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/lib/nvidia
-
-# 4. Safely activate your environment
-conda activate irpo
-
-# Create logs directory if missing
+# Create logs directory locally
 mkdir -p logs
 
-# === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
-for SEED in {0..4}; do
-    python3 main.py --project Atari --env ${env} --algo ${algo} --seed \$SEED --gpu-idx 0 &
-    sleep 3
-done
+echo "========================================================="
+echo " Submitting all 28 Experiment Jobs to the Cluster"
+echo " Each job (algorithm + environment) is allocated to 1 Node"
+echo " running 5 seeds across 1 GPU."
+echo "========================================================="
 
-# === Wait for all 5 runs to finish ===
-wait
-EOF
-        
-        chmod +x "$JOB_FILE"
-        echo "[SUBMIT] $JOB_FILE"
-        OUTPUT=$(sbatch "$JOB_FILE")
-        echo "$OUTPUT"
-        
-        # Sleep a bit between submissions to allow scheduler to catch up
-        sleep 1
-    done
-done
+echo "[SUBMIT] scripts/pacman_ppo.sbatch"
+OUTPUT=$(sbatch scripts/pacman_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/pacman_irpo.sbatch"
+OUTPUT=$(sbatch scripts/pacman_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/pacman_maml.sbatch"
+OUTPUT=$(sbatch scripts/pacman_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/pacman_hrl.sbatch"
+OUTPUT=$(sbatch scripts/pacman_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/pacman_drnd.sbatch"
+OUTPUT=$(sbatch scripts/pacman_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/pacman_trpo.sbatch"
+OUTPUT=$(sbatch scripts/pacman_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/pacman_psne.sbatch"
+OUTPUT=$(sbatch scripts/pacman_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_ppo.sbatch"
+OUTPUT=$(sbatch scripts/amidar_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_irpo.sbatch"
+OUTPUT=$(sbatch scripts/amidar_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_maml.sbatch"
+OUTPUT=$(sbatch scripts/amidar_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_hrl.sbatch"
+OUTPUT=$(sbatch scripts/amidar_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_drnd.sbatch"
+OUTPUT=$(sbatch scripts/amidar_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_trpo.sbatch"
+OUTPUT=$(sbatch scripts/amidar_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/amidar_psne.sbatch"
+OUTPUT=$(sbatch scripts/amidar_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_ppo.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_irpo.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_maml.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_hrl.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_drnd.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_trpo.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/bankheist_psne.sbatch"
+OUTPUT=$(sbatch scripts/bankheist_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_ppo.sbatch"
+OUTPUT=$(sbatch scripts/alien_ppo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_irpo.sbatch"
+OUTPUT=$(sbatch scripts/alien_irpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_maml.sbatch"
+OUTPUT=$(sbatch scripts/alien_maml.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_hrl.sbatch"
+OUTPUT=$(sbatch scripts/alien_hrl.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_drnd.sbatch"
+OUTPUT=$(sbatch scripts/alien_drnd.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_trpo.sbatch"
+OUTPUT=$(sbatch scripts/alien_trpo.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
+
+echo "[SUBMIT] scripts/alien_psne.sbatch"
+OUTPUT=$(sbatch scripts/alien_psne.sbatch)
+echo "$OUTPUT"
+JOBID=$(echo "$OUTPUT" | grep -o '[0-9]*$')
+echo "Waiting 5s for SLURM to estimate start time..."
+sleep 5
+squeue -j $JOBID --start
+sleep 0.5
 
 echo "========================================================="
-echo " All jobs successfully submitted to queue!"
+echo " All 28 jobs successfully submitted to queue!"
 echo " Check progress using: squeue -u $(whoami)"
 echo " Logs will be stored in: logs/"
 echo "========================================================="
