@@ -62,8 +62,8 @@ EOF
         
         chmod +x "$JOB_FILE"
         echo "[SUBMIT] $JOB_FILE"
-        OUTPUT=\$(sbatch "$JOB_FILE")
-        echo "\$OUTPUT"
+        OUTPUT=$(sbatch "$JOB_FILE")
+        echo "$OUTPUT"
         
         # Sleep a bit between submissions to allow scheduler to catch up
         sleep 1
@@ -72,6 +72,6 @@ done
 
 echo "========================================================="
 echo " All jobs successfully submitted to queue!"
-echo " Check progress using: squeue -u \$(whoami)"
+echo " Check progress using: squeue -u $(whoami)"
 echo " Logs will be stored in: logs/"
 echo "========================================================="
