@@ -31,6 +31,14 @@ if __name__ == "__main__":
     exp_time = datetime.datetime.now().strftime("%m-%d_%H-%M-%S.%f")
 
     seeds = [1825, 410, 4507, 4013, 3658, 2287, 1680, 8936, 1425, 9675]
+    if hasattr(init_args, 'seeds') and init_args.seeds is not None:
+        pass # Not using argparse for seeds to avoid breaking get_args.py
+        
+    import sys
+    if "--seeds" in sys.argv:
+        idx = sys.argv.index("--seeds")
+        seeds = [int(s) for s in sys.argv[idx+1].split(",")]
+        
     print(f"-------------------------------------------------------")
     print(f"      Running ID: {unique_id}")
     print(f"      Running Seeds: {seeds}")

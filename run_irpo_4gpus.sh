@@ -42,7 +42,20 @@ JOBS=(
     "amidar 4 3"
 )
 
-echo "Launching background processes..."
+echo "========================================================="
+echo " Pre-training ALLO Representations Sequentially"
+echo " (This prevents a massive 130GB RAM OOM spike from concurrent training)"
+echo "========================================================="
+
+echo "Pre-training for pacman (seeds 0,1,2,3,4)..."
+python3 train_models.py --env pacman --seeds 0,1,2,3,4
+
+echo "Pre-training for amidar (seeds 0,1,2,3,4)..."
+python3 train_models.py --env amidar --seeds 0,1,2,3,4
+
+echo "========================================================="
+echo " Pre-training complete! Launching background IRPO processes..."
+echo "========================================================="
 
 for JOB in "${JOBS[@]}"; do
     read -r ENV SEED GPU <<< "$JOB"
