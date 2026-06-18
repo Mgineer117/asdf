@@ -547,14 +547,9 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         encoder_fc_dim = [512, 512, 512, 512]
 
         # === CREATE FEATURE EXTRACTOR === #
-        # Tracks the CNN visual encoder for image envs so it can be saved as the
-        # frozen encoder the IRPO policy loads (None for vector envs).
-        self._allo_pixel_encoder = None
         if isinstance(self.input_shape, (tuple, list)) and len(self.input_shape) in (2, 3):
             # Image state (grayscale (H,W) or RGB (H,W,C)).
-            # ALLO trains its own CNN-augmented network end-to-end (NO VAE loss);
-            # the trained CNN is then exported as the FROZEN encoder for the IRPO
-            # policy, so both share the same visual representation.
+            # ALLO trains its own CNN-augmented network end-to-end (NO VAE loss).
             if len(self.input_shape) == 2:
                 chw_shape = (1, self.input_shape[0], self.input_shape[1])
             else:
@@ -574,7 +569,6 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                 backbone=backbone,
                 activation=activation,
             )
-            self._allo_pixel_encoder = feature_network.cnn
             extractor_pos_idx = None
         else:
             # Vector state: use the original MLP extractor
@@ -723,17 +717,6 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             torch.save(extractor.state_dict(), model_path)
 
         self.extractor = extractor
-
-        # Export the ALLO-trained CNN as the FROZEN visual encoder for the IRPO
-        # policy (image envs only). Saved unconditionally — even when ALLO was
-        # already fully trained and just loaded — so the encoder file always
-        # matches the extractor IRPO will run with.
-        if self._allo_pixel_encoder is not None:
-            enc_dir = os.path.join("model", model_env_name, "allo_encoder")
-            os.makedirs(enc_dir, exist_ok=True)
-            enc_path = os.path.join(enc_dir, f"{self.args.seed}.pth")
-            torch.save(self._allo_pixel_encoder.state_dict(), enc_path)
-            print(f"[ALLO] Saved frozen policy encoder to '{enc_path}'.")
 
 
 class ALLOIntRewardFunctionG(ALLOIntRewardFunctions):

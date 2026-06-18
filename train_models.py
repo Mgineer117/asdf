@@ -4,12 +4,8 @@ Train the ALLO intrinsic-reward model for each seed.
 Atari workflow
 --------------
 Run this script FIRST (before IRPO with int_reward_type=allo). ALLO trains its
-own CNN-augmented network end-to-end (AtariFeatureNet, no VAE loss) and exports
-the trained CNN as the frozen policy encoder at:
-    model/<env>/allo_encoder/<seed>.pth
-
-IRPO (int_reward_type=allo) then loads that encoder FROZEN, so the policy and the
-intrinsic reward share the same ALLO-learned visual representation.
+own CNN-augmented network end-to-end (AtariFeatureNet, no VAE loss) and saves
+the trained model weights.
 """
 
 import datetime
@@ -58,7 +54,6 @@ if __name__ == "__main__":
         args.int_reward_type = "allo"
 
         # ALLOIntRewardFunctions trains the AtariFeatureNet (CNN+MLP, no VAE loss)
-        # and exports its CNN to model/<env>/allo_encoder/<seed>.pth for IRPO.
         irf = ALLOIntRewardFunctions(
             logger=logger, writer=writer, args=args, init_timesteps=current_timesteps
         )
