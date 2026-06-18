@@ -19,7 +19,8 @@ class HRL_Learner(Base):
         critic: PPO_Critic,
         is_discrete: bool,
         nupdates: int,
-        lr: float = 3e-4,
+        actor_lr: float = 3e-4,
+        critic_lr: float = 3e-4,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         eps_clip: float = 0.2,
@@ -60,8 +61,8 @@ class HRL_Learner(Base):
 
         self.optimizer = torch.optim.Adam(
             [
-                {"params": self.actor.parameters(), "lr": lr},
-                {"params": self.critic.parameters(), "lr": lr},
+                {"params": self.actor.parameters(), "lr": actor_lr},
+                {"params": self.critic.parameters(), "lr": critic_lr},
             ]
         )
         self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(

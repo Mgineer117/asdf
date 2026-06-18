@@ -49,7 +49,7 @@ class IRPO_Learner(Base):
         # find_lr: bool,
         num_exp_updates: int,
         base_policy_update_type: str = "trpo",
-        lr: float = 1e-2,
+        actor_lr: float = 1e-2,
         critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
@@ -76,7 +76,7 @@ class IRPO_Learner(Base):
 
         # Learning rates
         self.beta = beta
-        self.lr = lr
+        self.lr = actor_lr
         # self.find_lr = find_lr
         self.critic_lr = critic_lr
         self.noise_std = noise_std
@@ -790,7 +790,7 @@ class IRPO_G_Learner(IRPO_Learner):
         noise_std: float,
         num_exp_updates: int,
         base_policy_update_type: str = "trpo",
-        lr: float = 1e-2,
+        actor_lr: float = 1e-2,
         critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,

@@ -24,7 +24,8 @@ class TRPO_Learner(Base):
         critic: PPO_Critic,
         is_discrete: bool,
         nupdates: int,
-        lr: float = 1e-3,
+        actor_lr: float = 1e-3,
+        critic_lr: float = 1e-3,
         batch_size: int = 8,
         entropy_scaler: float = 1e-3,
         l2_reg: float = 1e-8,
@@ -65,7 +66,7 @@ class TRPO_Learner(Base):
         self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
         self.sync_obs_rms_to(self.actor, self.critic)
 
-        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=critic_lr)
 
         #
         self.steps = 0

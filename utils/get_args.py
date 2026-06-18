@@ -30,12 +30,21 @@ def override_args(init_args):
     # use pre-defined params if no pram given as args
     # getattr(..., None) so config keys without a matching CLI arg (e.g. a
     # removed --batch-size) are still applied instead of raising AttributeError.
+    # Map legacy keys from config
     for k, v in env_params.items():
-        if getattr(args, k, None) is None:
+        if k == "learning_rate" and getattr(args, "actor_lr", None) is None:
+            setattr(args, "actor_lr", v)
+        elif k == "atari_learning_rate" and getattr(args, "atari_actor_lr", None) is None:
+            setattr(args, "atari_actor_lr", v)
+        elif getattr(args, k, None) is None:
             setattr(args, k, v)
 
     for k, v in algo_params.items():
-        if getattr(args, k, None) is None:
+        if k == "learning_rate" and getattr(args, "actor_lr", None) is None:
+            setattr(args, "actor_lr", v)
+        elif k == "atari_learning_rate" and getattr(args, "atari_actor_lr", None) is None:
+            setattr(args, "atari_actor_lr", v)
+        elif getattr(args, k, None) is None:
             setattr(args, k, v)
 
     atari_envs = ["pacman", "amidar", "bankheist", "alien"]
@@ -48,8 +57,12 @@ def override_args(init_args):
         args.critic_activation = args.atari_activation if env_name in atari_envs else args.activation
 
     if env_name in atari_envs:
-        if getattr(args, "atari_learning_rate", None) is not None:
-            args.learning_rate = args.atari_learning_rate
+        if getattr(args, "atari_actor_lr", None) is not None:
+            args.actor_lr = args.atari_actor_lr
+            
+    # Set default critic lr
+    if getattr(args, "critic_lr", None) is None:
+        args.critic_lr = 3e-4
 
     return args
 
@@ -145,16 +158,22 @@ def get_args():
         help="The learning rate for the Actor network optimizer (used in standard baselines like PPO).",
     )
     parser.add_argument(
-        "--learning_rate",
+        "--actor-lr",
         type=float,
         default=None,
-        help="The learning rate for the Actor network optimizer (used in standard baselines like PPO).",
+        help="The learning rate for the Actor network optimizer.",
     )
     parser.add_argument(
-        "--atari-learning-rate",
+        "--atari-actor-lr",
         type=float,
         default=None,
-        help="Learning rate for Atari environments",
+        help="Learning rate for the Actor network in Atari environments.",
+    )
+    parser.add_argument(
+        "--critic-lr",
+        type=float,
+        default=3e-4,
+        help="The learning rate for the Critic network optimizer.",
     )
     parser.add_argument(
         "--activation",
@@ -398,8 +417,11 @@ def get_args():
 
     atari_envs = ["pacman", "amidar", "bankheist", "alien"]
     env_name, _, _ = args.env_name.partition("-")
-    if env_name in atari_envs and getattr(args, "atari_learning_rate", None) is not None:
-        args.learning_rate = args.atari_learning_rate
+    if env_name in atari_envs and getattr(args, "atari_actor_lr", None) is not None:
+        args.actor_lr = args.atari_actor_lr
+        
+    if getattr(args, "critic_lr", None) is None:
+        args.critic_lr = 3e-4
 
     return args
 

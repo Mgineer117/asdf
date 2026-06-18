@@ -20,7 +20,8 @@ class DRND_Learner(Base):
         drnd_critic: PPO_Critic,
         positional_indices: list,
         nupdates: int | None = None,
-        lr: float = 3e-4,
+        actor_lr: float = 3e-4,
+        critic_lr: float = 3e-4,
         drnd_lr: float = 3e-4,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
@@ -75,10 +76,10 @@ class DRND_Learner(Base):
 
         self.optimizer = torch.optim.Adam(
             [
-                {"params": self.actor.parameters(), "lr": lr},
-                {"params": self.critic.parameters(), "lr": lr},
+                {"params": self.actor.parameters(), "lr": actor_lr},
+                {"params": self.critic.parameters(), "lr": critic_lr},
                 {"params": self.drnd.parameters(), "lr": drnd_lr},
-                {"params": self.drnd_critic.parameters(), "lr": lr},
+                {"params": self.drnd_critic.parameters(), "lr": critic_lr},
             ]
         )
         self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(

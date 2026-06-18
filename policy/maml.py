@@ -23,7 +23,7 @@ class MAML_Learner(Base):
         timesteps: int,
         num_exp_updates: int,
         base_policy_update_type: str = "sgd",
-        lr: float = 1e-3,
+        actor_lr: float = 1e-3,
         critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
@@ -47,7 +47,7 @@ class MAML_Learner(Base):
         assert self.num_exp_updates >= 2, "num_exp_updates must be at least 2"
 
         # Learning rates
-        self.lr = lr
+        self.lr = actor_lr
         self.critic_lr = critic_lr
 
         # Hyperparameters

@@ -25,7 +25,8 @@ class PSNE_Learner(Base):
         is_discrete: bool,
         states: np.ndarray,
         nupdates: int,
-        lr: float = 1e-3,
+        actor_lr: float = 1e-3,
+        critic_lr: float = 1e-3,
         entropy_scaler: float = 1e-3,
         batch_size: int = 8,
         l2_reg: float = 1e-8,
@@ -73,7 +74,7 @@ class PSNE_Learner(Base):
         self.setup_obs_rms(actor.input_shape, pos_idx=pos_idx, goal_idx=goal_idx)
         self.update_obs_rms(self.states)
         self.sync_obs_rms_to(self.actor, self.sampled_actor, self.critic)
-        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(params=self.critic.parameters(), lr=critic_lr)
 
         #
         self.steps = 0
