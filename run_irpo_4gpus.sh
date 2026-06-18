@@ -20,7 +20,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/u/minjae5/.mujoco/mujoco210/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 
 # 4. Safely activate the environment
-conda activate irpo
+conda activate IRPO
 
 # Array of jobs: "env_name seed gpu_idx"
 # We have 10 jobs total. Max 3 per GPU.
