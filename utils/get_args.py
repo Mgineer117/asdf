@@ -51,10 +51,9 @@ def override_args(init_args):
     env_name, _, _ = args.env_name.partition("-")
     
     # Resolve activation logic
-    if getattr(args, "actor_activation", None) is None:
-        args.actor_activation = args.atari_activation if env_name in atari_envs else args.activation
-    if getattr(args, "critic_activation", None) is None:
-        args.critic_activation = args.atari_activation if env_name in atari_envs else args.activation
+    if env_name in atari_envs:
+        if getattr(args, "atari_activation", None) is not None:
+            args.activation = args.atari_activation
 
     if env_name in atari_envs:
         if getattr(args, "atari_actor_lr", None) is not None:
@@ -422,6 +421,9 @@ def get_args():
         
     if getattr(args, "critic_lr", None) is None:
         args.critic_lr = 3e-4
+        
+    if env_name in atari_envs and getattr(args, "atari_activation", None) is not None:
+        args.activation = args.atari_activation
 
     return args
 

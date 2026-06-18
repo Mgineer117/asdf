@@ -339,7 +339,7 @@ class RandomIntRewardFunctions(BaseIntRewardFunctions):
         from extractor.base.mlp import NeuralNet
         from extractor.extractor import ALLO as Random
 
-        activation = build_activation(getattr(self.args, "actor_activation", "elu"))
+        activation = build_activation(getattr(self.args, "activation", "elu"))
         encoder_fc_dim = [512, 512, 512, 512]
 
         # === CREATE FEATURE EXTRACTOR === #
@@ -543,7 +543,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
         if not os.path.exists(f"model/{model_env_name}"):
             os.makedirs(f"model/{model_env_name}")
 
-        activation = build_activation(getattr(self.args, "actor_activation", "elu"))
+        activation = build_activation(getattr(self.args, "activation", "elu"))
         encoder_fc_dim = [512, 512, 512, 512]
 
         # === CREATE FEATURE EXTRACTOR === #

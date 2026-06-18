@@ -55,7 +55,7 @@ class DRND_Algorithm(nn.Module):
         """
         pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
         goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
-        activation = build_activation(getattr(self.args, "actor_activation", None))
+        activation = build_activation(getattr(self.args, "activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,

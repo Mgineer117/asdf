@@ -93,7 +93,7 @@ class HRL(nn.Module):
         # === Define policy === #
         pos_idx = self.args.pos_idx if getattr(self.args, "is_goal_conditioned", False) else None
         goal_idx = self.args.goal_idx if getattr(self.args, "is_goal_conditioned", False) else None
-        activation = build_activation(getattr(self.args, "actor_activation", None))
+        activation = build_activation(getattr(self.args, "activation", None))
         self.policies = nn.ModuleList([])
         for i in range(self.args.num_options):
             actor = PPO_Actor(

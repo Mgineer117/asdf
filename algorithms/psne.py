@@ -76,7 +76,7 @@ class PSNE_Algorithm(nn.Module):
             env=self.env, policies=[self.uniform_random_policy], seed=self.args.seed
         )
 
-        activation = build_activation(getattr(self.args, "actor_activation", None))
+        activation = build_activation(getattr(self.args, "activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,

@@ -49,7 +49,7 @@ class PPO_Algorithm(nn.Module):
         return trainer.best_success_mean
 
     def define_policy(self):
-        activation = build_activation(getattr(self.args, "actor_activation", None))
+        activation = build_activation(getattr(self.args, "activation", None))
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,

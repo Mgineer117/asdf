@@ -71,7 +71,7 @@ class MAML_Algorithm(nn.Module):
             if getattr(self.args, "is_goal_conditioned", False)
             else None
         )
-        activation = build_activation(getattr(self.args, "actor_activation", None))
+        activation = build_activation(getattr(self.args, "activation", None))
         
         env_name_base = self.args.env_name.split("-")[0]
         _ATARI_ENVS = {"pacman", "amidar", "bankheist", "alien"}

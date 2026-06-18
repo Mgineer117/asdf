@@ -97,7 +97,7 @@ class IRPO_Algorithm(nn.Module):
 
     def define_base_policy(self):
         # === Define policy === #
-        activation = build_activation(getattr(self.args, "actor_activation", None))
+        activation = build_activation(getattr(self.args, "activation", None))
 
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
