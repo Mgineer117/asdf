@@ -47,7 +47,8 @@
       "Bash(python -m py_compile policy/layers/ppo_networks.py policy/irpo.py algorithms/irpo.py)",
       "Bash(python -m py_compile policy/irpo.py algorithms/irpo.py policy/layers/ppo_networks.py utils/rl.py)",
       "Bash(python -m py_compile policy/irpo.py pretrain_vae.py)",
-      "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\), f\\) for f in ['algorithms/irpo.py','utils/intrinsic_rewards.py','pretrain_vae.py','train_models.py','policy/irpo.py']]; print\\('syntax OK'\\)\")"
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\), f\\) for f in ['algorithms/irpo.py','utils/intrinsic_rewards.py','pretrain_vae.py','train_models.py','policy/irpo.py']]; print\\('syntax OK'\\)\")",
+      "Bash(git diff *)"
     ]
   }
 }

@@ -61,7 +61,7 @@ def override_args(init_args):
             
     # Set default critic lr
     if getattr(args, "critic_lr", None) is None:
-        args.critic_lr = 3e-4
+        args.critic_lr = 1e-4
 
     return args
 
@@ -171,7 +171,7 @@ def get_args():
     parser.add_argument(
         "--critic-lr",
         type=float,
-        default=3e-4,
+        default=1e-4,
         help="The learning rate for the Critic network optimizer.",
     )
     parser.add_argument(
@@ -420,7 +420,7 @@ def get_args():
         args.actor_lr = args.atari_actor_lr
         
     if getattr(args, "critic_lr", None) is None:
-        args.critic_lr = 3e-4
+        args.critic_lr = 1e-4
         
     if env_name in atari_envs and getattr(args, "atari_activation", None) is not None:
         args.activation = args.atari_activation
