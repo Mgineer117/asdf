@@ -63,11 +63,11 @@ class MLP(nn.Module):
                 linear_layer.bias.data.fill_(0.0)
 
             elif initialization == "actor":
-                nn.init.orthogonal_(linear_layer.weight, gain=0.01)
+                nn.init.orthogonal_(linear_layer.weight, gain=gain)
                 linear_layer.bias.data.fill_(0.0)
 
             elif initialization == "critic":
-                nn.init.orthogonal_(linear_layer.weight, gain=1)
+                nn.init.orthogonal_(linear_layer.weight, gain=gain)
                 linear_layer.bias.data.fill_(0.0)
 
             model += [linear_layer]
