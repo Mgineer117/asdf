@@ -111,39 +111,6 @@ class AtariFeatureNet(nn.Module):
             return self.backbone(feat, deterministic=deterministic)
 
 
-class EncoderWrappedNetwork(nn.Module):
-    """
-    Wraps a frozen ConvVAEEncoder with an ALLO MLP extractor.
-
-    When used as the ALLO network for Atari:
-    - encoder : ConvVAEEncoder (frozen, maps raw pixels → latent vector)
-    - network : NeuralNet MLP  (trainable, maps latent → ALLO eigenvectors)
-
-    This lets ALLO train on the same feature space the policy uses, without
-    re-training the CNN.
-    """
-
-    def __init__(self, encoder: nn.Module, network: nn.Module):
-        super().__init__()
-        self.encoder = encoder
-        self.encoder.requires_grad_(False)  # frozen — only network trains
-        self.network = network
-
-    @property
-    def feature_dim(self):
-        return self.network.feature_dim
-
-    def forward(self, x, deterministic=False):
-        # x : (B, H, W) raw pixels or (B, 1, H, W) already formatted
-        if x.ndim == 3:
-            x = x.unsqueeze(1)
-        if x.max() > 1.0:
-            x = x / 255.0
-        with torch.no_grad():
-            z = self.encoder(x)          # (B, latent_dim)
-        features, infos = self.network(z, deterministic=deterministic)
-        return features, infos
-
 
 class BaseIntRewardFunctions(nn.Module):
     def __init__(self, logger, writer, args, init_timesteps: int = 0, **kwargs):
