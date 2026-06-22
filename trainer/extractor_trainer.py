@@ -202,8 +202,20 @@ class ExtractorTrainer:
             print("Video logging error. Likely a system problem.")
 
     def save_model(self, e):
-        # save checkpoint
+        # Save checkpoint atomically: write to a temp file then rename.
+        # This prevents two parallel processes from corrupting each other's
+        # .pth file when they happen to save at the same training step.
         name = f"extractor_{e}.pth"
         path = os.path.join(self.logger.checkpoint_dir, name)
-        model = deepcopy(self.extractor).to("cpu")
-        torch.save(model.state_dict(), path)
+        tmp_path = path + f".tmp{os.getpid()}"
+        try:
+            model = deepcopy(self.extractor).to("cpu")
+            torch.save(model.state_dict(), tmp_path)
+            os.replace(tmp_path, path)  # atomic on POSIX; safe even under concurrency
+        except Exception as ex:
+            print(f"[WARNING] save_model failed (skipping checkpoint): {ex}")
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
