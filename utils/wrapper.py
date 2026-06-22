@@ -90,6 +90,7 @@ class ArcadeWrapper(gym.Wrapper):
         self._encoder = encoder
 
         self.device = device
+        self.reward_rms = RunningMeanStd(shape=(1,))
 
         if encoder is not None:
             self._encoder = encoder
@@ -141,9 +142,8 @@ class ArcadeWrapper(gym.Wrapper):
     def step(self, action):
         action = np.argmax(action)
         obs, reward, term, trunc, info = self.env.step(action)
-        # Standard Atari Deep RL practice: clip rewards to [-1, 1] to prevent
-        # exploding value functions and massive advantages that break TRPO/PPO.
-        reward = np.sign(reward)
+        # Apply running mean normalization to rewards
+        reward = float(self.reward_rms.normalize([reward], update=True)[0])
         return self._encode(obs), reward, term, trunc, info
 
     def reset(self, **kwargs):
