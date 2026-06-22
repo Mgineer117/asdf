@@ -141,6 +141,9 @@ class ArcadeWrapper(gym.Wrapper):
     def step(self, action):
         action = np.argmax(action)
         obs, reward, term, trunc, info = self.env.step(action)
+        # Standard Atari Deep RL practice: clip rewards to [-1, 1] to prevent
+        # exploding value functions and massive advantages that break TRPO/PPO.
+        reward = np.sign(reward)
         return self._encode(obs), reward, term, trunc, info
 
     def reset(self, **kwargs):
