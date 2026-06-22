@@ -168,3 +168,8 @@ sweep_logs/*
 
 # Ignore VS Code settings (entire .vscode folder)
 .vscode/
+# Ignore models and logs
+logs/
+model/
+
+scripts/*_eng_gpu.sbatch

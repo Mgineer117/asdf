@@ -631,11 +631,16 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
                     f"[INFO] Loading model from: {model_path} (epoch {max_epoch}, seed {self.args.seed}, discount {self.args.discount_sampling_factor})"
                 )
 
-                extractor.load_state_dict(
-                    torch.load(model_path, map_location=self.args.device)
-                )
-                extractor.to(self.args.device)
-                epochs = max_epoch  # set current epoch
+                try:
+                    extractor.load_state_dict(
+                        torch.load(model_path, map_location=self.args.device)
+                    )
+                    extractor.to(self.args.device)
+                    epochs = max_epoch  # set current epoch
+                except RuntimeError as e:
+                    print(f"[WARNING] Failed to load checkpoint {model_path} (architecture mismatch): {e}")
+                    print("[INFO] Starting training from scratch for the new architecture.")
+                    epochs = 0
 
         if epochs < self.args.extractor_epochs:
             # Reduce RAM usage for image-based (Atari) states by halving the buffer size

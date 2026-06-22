@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from policy.irpo import NUM_GOALS, IRPO_G_Learner, IRPO_Learner
-from policy.layers.building_blocks import CNN, MLP, ConvVAEEncoder
+from policy.layers.building_blocks import CNN, MLP
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.functions import build_activation
