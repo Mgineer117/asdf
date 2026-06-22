@@ -101,10 +101,6 @@ class ExtractorTrainer:
                     )
 
                     eval_idx += 1
-                    self.loss_list.append(loss_dict[f"{self.extractor.name}/loss"])
-                    if np.mean(self.loss_list) < self.last_min_loss:
-                        self.last_min_loss = np.mean(self.loss_list)
-                        self.save_model(step)
 
                 torch.cuda.empty_cache()
 
