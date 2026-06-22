@@ -176,7 +176,11 @@ class ExtractorTrainer:
         self.logger.store(**logging_dict)
         self.logger.write(step, eval_log=eval_log, display=False)
         for key, value in logging_dict.items():
-            self.writer.add_scalar(key, value, step)
+            try:
+                self.writer.add_scalar(key, value, step)
+            except Exception:
+                # TensorBoard writer is not process-safe; silently skip on collision
+                pass
 
     def write_image(self, image: np.ndarray, step: int, logdir: str, name: str):
         if image is not None:
