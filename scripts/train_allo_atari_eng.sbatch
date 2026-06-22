@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=atari_allo_ic
+#SBATCH --job-name=atari_allo_eng
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=IllinoisComputes-GPU
+#SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=20
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=512G
 #SBATCH --gres=gpu:2
-#SBATCH --time=3-00:00:00
-#SBATCH --output=logs/atari_allo_ic.o%j
+#SBATCH --time=2-00:00:00
+#SBATCH --output=logs/atari_allo_eng.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
 
