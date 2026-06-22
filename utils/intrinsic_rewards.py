@@ -553,7 +553,7 @@ class ALLOIntRewardFunctions(BaseIntRewardFunctions):
             positional_indices=extractor_pos_idx,
             extractor_lr=self.args.extractor_lr,
             epochs=self.args.extractor_epochs,
-            batch_size=1024,
+            batch_size=256,
             lr_barrier_coeff=self.args.lr_barrier_coeff,
             discount=self.args.discount_sampling_factor,
             device=self.args.device,
