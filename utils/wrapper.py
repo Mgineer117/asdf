@@ -142,8 +142,8 @@ class ArcadeWrapper(gym.Wrapper):
     def step(self, action):
         action = np.argmax(action)
         obs, reward, term, trunc, info = self.env.step(action)
-        # Apply running mean normalization to rewards
-        reward = float(self.reward_rms.normalize([reward], update=True)[0])
+        # Apply variance-only running normalization to rewards
+        reward = float(self.reward_rms.normalize_var_only([reward], update=True)[0])
         return self._encode(obs), reward, term, trunc, info
 
     def reset(self, **kwargs):
