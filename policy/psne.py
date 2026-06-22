@@ -32,7 +32,7 @@ class PSNE_Learner(Base):
         l2_reg: float = 1e-8,
         target_kl: float = 0.03,
         damping: float = 1e-1,
-        backtrack_iters: int = 10,
+        backtrack_iters: int = 20,
         backtrack_coeff: float = 0.8,
         gamma: float = 0.99,
         gae: float = 0.9,
