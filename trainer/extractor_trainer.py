@@ -103,6 +103,7 @@ class ExtractorTrainer:
                     eval_idx += 1
                     self.loss_list.append(loss_dict[f"{self.extractor.name}/loss"])
                     if np.mean(self.loss_list) < self.last_min_loss:
+                        self.last_min_loss = np.mean(self.loss_list)
                         self.save_model(step)
 
                 torch.cuda.empty_cache()
@@ -202,11 +203,10 @@ class ExtractorTrainer:
             print("Video logging error. Likely a system problem.")
 
     def save_model(self, e):
-        # Save checkpoint atomically: write to a temp file then rename.
-        # This prevents two parallel processes from corrupting each other's
-        # .pth file when they happen to save at the same training step.
-        name = f"extractor_{e}.pth"
-        path = os.path.join(self.logger.checkpoint_dir, name)
+        # Save only the single best checkpoint (overwrite same file each time).
+        # The final model is persisted separately by intrinsic_rewards.py.
+        # Using a fixed name prevents unbounded accumulation of intermediate .pth files.
+        path = os.path.join(self.logger.checkpoint_dir, "best_extractor.pth")
         tmp_path = path + f".tmp{os.getpid()}"
         try:
             model = deepcopy(self.extractor).to("cpu")
