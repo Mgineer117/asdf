@@ -98,11 +98,11 @@ class CNN(nn.Module):
         n_input_channels = input_shape[0]
 
         self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 32, kernel_size=8, stride=4, padding=0),
+            nn.Conv2d(n_input_channels, 16, kernel_size=8, stride=4, padding=0),
             activation,
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
+            nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=0),
             activation,
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=0),
             activation,
             nn.Flatten(),
         )
