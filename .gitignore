@@ -170,6 +170,5 @@ sweep_logs/*
 .vscode/
 # Ignore models and logs
 logs/
-model/
 
 scripts/*_eng_gpu.sbatch
