@@ -265,6 +265,21 @@ class BaseTrainer:
                 os.path.join(self.logger.log_dir, "best_success_model.pth"),
             )
 
+        # --- SLURM job-chain resume: overwrite a single latest_full.pt each eval ---
+        # Stores the complete policy state (all sub-modules + optimizers if available)
+        # and the current timestep so the next chain segment can continue seamlessly.
+        try:
+            checkpoint = {
+                "step": step,
+                "policy_state": self.policy.state_dict(),
+            }
+            tmp_path = os.path.join(self.logger.checkpoint_dir, "latest_full.pt.tmp")
+            final_path = os.path.join(self.logger.checkpoint_dir, "latest_full.pt")
+            torch.save(checkpoint, tmp_path)
+            os.replace(tmp_path, final_path)  # atomic on POSIX
+        except Exception as e:
+            print(f"[WARNING] Failed to save latest_full.pt (non-fatal): {e}")
+
     def visitation_to_rgb(self, visitation_map: np.ndarray) -> np.ndarray:
         visitation_map = np.squeeze(visitation_map)  # Make sure it's 2D
         H, W = visitation_map.shape

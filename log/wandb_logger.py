@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import Iterable
 
@@ -21,6 +22,8 @@ class WandbLogger(BaseLogger):
         is_sweep: bool = False,
         sweep_metric_prefix: str | None = None,
         mode: str = "online",
+        resume_run: bool = False,
+        run_id_path: str | None = None,
     ) -> None:
         super().__init__(log_dir, log_txt, name)
         self.fps = fps
@@ -31,15 +34,26 @@ class WandbLogger(BaseLogger):
         # constraint when multiple seeds share a single sweep run.
         self.sweep_metric_prefix = sweep_metric_prefix
         self._defined_metrics = False
+        self.run_id_path = run_id_path
 
         if not self.is_sweep:
-            # Always initialize a new wandb run with the specified mode
+            # --- Job-chain resume: read saved run-ID from file ---
+            run_id = None
+            resume_mode = "allow"
+            if resume_run and run_id_path and os.path.isfile(run_id_path):
+                with open(run_id_path, "r") as f:
+                    run_id = f.read().strip()
+                resume_mode = "must"
+                print(f"[WandB] Resuming run ID={run_id} from {run_id_path}")
+            else:
+                run_id = str(uuid.uuid4())
+
             self.wandb_run = wandb.init(
                 project=project,
                 group=group,
                 name=name,
-                id=str(uuid.uuid4()),
-                resume="allow",
+                id=run_id,
+                resume=resume_mode,
                 config=config,  # type: ignore
                 settings=wandb.Settings(init_timeout=120),
                 mode=mode,
@@ -47,6 +61,11 @@ class WandbLogger(BaseLogger):
             )
             if self.wandb_run:
                 print(f"[WandB] Initialized in '{mode}' mode - Project: {project}, Group: {group}")
+                # Persist the run-ID so the next chain segment can resume it
+                if run_id_path:
+                    os.makedirs(os.path.dirname(run_id_path), exist_ok=True)
+                    with open(run_id_path, "w") as f:
+                        f.write(self.wandb_run.id)
         else:
             self.wandb_run = wandb.run
             if self.wandb_run is not None and self.sweep_metric_prefix:

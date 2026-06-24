@@ -114,6 +114,22 @@ def get_args():
         choices=["online", "offline", "disabled"],
         help="Set WandB logging mode: 'online' to log to WandB server, 'offline' to save locally, 'disabled' to turn off WandB.",
     )
+    parser.add_argument(
+        "--resume-run",
+        dest="resume_run",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, resume from a previous SLURM chain segment: reads the saved WandB "
+            "run-ID from --run-id-dir and loads the latest checkpoint from the log dir."
+        ),
+    )
+    parser.add_argument(
+        "--run-id-dir",
+        type=str,
+        default="log/wandb_ids",
+        help="Directory where per-seed WandB run-ID files are stored for job-chain resume.",
+    )
 
     # === ENVIRONMENT & ALGORITHM === #
     parser.add_argument(

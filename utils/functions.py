@@ -48,6 +48,20 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
     default_cfg = vars(args)
     sweep_metric_prefix = getattr(args, "sweep_metric_prefix", None)
     wandb_mode = getattr(args, "wandb_mode", "online")
+
+    # --- Job-chain resume: build per-seed run-ID file path ---
+    resume_run = getattr(args, "resume_run", False)
+    run_id_dir = getattr(args, "run_id_dir", "log/wandb_ids")
+    algo_tag = args.algo_name
+    if args.algo_name == "irpo":
+        int_type = getattr(args, "int_reward_type", None)
+        if int_type:
+            algo_tag = f"irpo_{int_type}"
+    run_id_path = os.path.join(
+        run_id_dir,
+        f"{args.env_name}_{algo_tag}_seed{seed}.txt",
+    )
+
     logger = WandbLogger(
         config=default_cfg,
         project=args.project,
@@ -58,6 +72,8 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
         is_sweep=is_sweep,
         sweep_metric_prefix=sweep_metric_prefix,
         mode=wandb_mode,
+        resume_run=resume_run,
+        run_id_path=run_id_path,
     )
     logger.save_config(default_cfg, verbose=True)
 
@@ -66,6 +82,7 @@ def setup_logger(args, unique_id, exp_time, seed, is_sweep: False):
     writer = SummaryWriter(log_dir=tensorboard_path)
 
     return logger, writer
+
 
 
 def seed_all(seed=0):

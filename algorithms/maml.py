@@ -41,13 +41,14 @@ class MAML_Algorithm(nn.Module):
 
         # === Meta-train using options === #'
         self.define_base_policy()
+        resume_offset = getattr(self.args, "resume_init_timesteps", 0)
         trainer = OnPolicyTrainer(
             env=self.env,
             policy=self.policy,
             sampler=sampler,
             logger=self.logger,
             writer=self.writer,
-            init_timesteps=self.current_timesteps,
+            init_timesteps=self.current_timesteps + resume_offset,
             timesteps=self.args.timesteps,
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,

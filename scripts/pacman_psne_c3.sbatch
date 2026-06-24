@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=pacman_irpo_allo
+#SBATCH --job-name=pacman_psne_c3
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=IllinoisComputes-GPU
+#SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:1
-#SBATCH --time=3-00:00:00
-#SBATCH --output=logs/pacman_irpo_allo.o%j
+#SBATCH --time=2-00:00:00
+#SBATCH --output=logs/pacman_psne_c3.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
 
@@ -32,8 +32,9 @@ mkdir -p logs
 
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {0..4}; do
-    python3 main.py --project Atari --env pacman --algo irpo --int-reward-type allo \
-        --seed $SEED --gpu-idx 0 &
+    python3 main.py --project Atari --env pacman --algo psne  \
+        --seed $SEED --gpu-idx 0 \
+        --resume-run &
     sleep 3
 done
 
