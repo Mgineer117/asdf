@@ -180,6 +180,9 @@ lines = [
     "set -euo pipefail",
     "mkdir -p logs",
     "",
+    "# Collected job IDs (every chain segment), used for the start-time report.",
+    "SUBMITTED_JIDS=()",
+    "",
     'echo "========================================================="',
     f'echo " Submitting {len(ENVS)} envs × {len(ALGO_SUBSET)} algos with dependency chains"',
     'echo "========================================================="',
@@ -204,14 +207,38 @@ for (env, algo_key), chain_list in sorted(blocks.items()):
                 f'{var}=$(sbatch --parsable --dependency=afterany:${{{prev_var}}} scripts/{sbatch_file})'
             )
         lines.append(f'echo "[SUBMIT] scripts/{sbatch_file} → job ID: ${{{var}}}"')
+        lines.append(f'SUBMITTED_JIDS+=("${{{var}}}")')
         prev_var = var
 
     lines.append("")
 
 lines += [
     'echo "========================================================="',
-    'echo " All jobs submitted. Check with: squeue -u $(whoami)"',
+    'echo " All jobs submitted. Waiting 10s for the scheduler to register them..."',
     'echo "========================================================="',
+    "sleep 10",
+    "",
+    "# Comma-separated job-id list for squeue.",
+    'JOBS_CSV=$(IFS=,; echo "${SUBMITTED_JIDS[*]}")',
+    "",
+    'echo "========================================================="',
+    'echo " Estimated start times (squeue --start)"',
+    'echo "========================================================="',
+    "# --start prints the scheduler's estimated START_TIME and the pending",
+    "# reason (Resources/Priority/Dependency). Restricted to the jobs we just",
+    "# submitted; falls back to all of the user's jobs if the id filter errors.",
+    'squeue --start --jobs="$JOBS_CSV" \\',
+    '    -o "%.12i %.34j %.16P %.20S %.10T %.18r" \\',
+    '    || squeue --start -u "$(whoami)"',
+    "",
+    'echo "========================================================="',
+    'echo " Live queue status (squeue)"',
+    'echo "========================================================="',
+    'squeue --jobs="$JOBS_CSV" \\',
+    '    -o "%.12i %.34j %.16P %.10T %.10M %.10l %.18r" \\',
+    '    || squeue -u "$(whoami)"',
+    "",
+    'echo "Re-check anytime with:  squeue --start --jobs=$JOBS_CSV"',
 ]
 
 submit_path = f"scripts/{SUBMIT_NAME}"
