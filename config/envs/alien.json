@@ -3,7 +3,7 @@
     "sub_timesteps": 20000000.0,
     "timesteps": 100000000.0,
     "gamma": 0.999,
-    "num_options": 4,
+    "num_options": 3,
     "int_reward_type": "allo",
     "batch_size": 4096,
     "num_minibatch": 16,

@@ -58,7 +58,11 @@ def override_args(init_args):
     if env_name in atari_envs:
         if getattr(args, "atari_actor_lr", None) is not None:
             args.actor_lr = args.atari_actor_lr
-            
+
+    if env_name in atari_envs:
+        if getattr(args, "atari_num_exp_updates", None) is not None:
+            args.num_exp_updates = args.atari_num_exp_updates
+
     # Set default critic lr
     if getattr(args, "critic_lr", None) is None:
         args.critic_lr = 1e-4
@@ -256,6 +260,12 @@ def get_args():
         help="The number of gradient updates performed on the exploratory policies per iteration of the inner loop.",
     )
     parser.add_argument(
+        "--atari-num-exp-updates",
+        type=int,
+        default=None,
+        help="Number of exploratory-policy inner updates in Atari environments (overrides --num-exp-updates for Atari to bound the second-order graph memory).",
+    )
+    parser.add_argument(
         "--int-reward-type",
         type=str,
         default=None,
@@ -434,7 +444,10 @@ def get_args():
     env_name, _, _ = args.env_name.partition("-")
     if env_name in atari_envs and getattr(args, "atari_actor_lr", None) is not None:
         args.actor_lr = args.atari_actor_lr
-        
+
+    if env_name in atari_envs and getattr(args, "atari_num_exp_updates", None) is not None:
+        args.num_exp_updates = args.atari_num_exp_updates
+
     if getattr(args, "critic_lr", None) is None:
         args.critic_lr = 1e-4
         
