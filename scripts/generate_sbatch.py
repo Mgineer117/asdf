@@ -130,13 +130,29 @@ def generate_sbatch(env: str, algo_key: str, chain_idx: int) -> str:
     return job_name, content
 
 
+# ── Subset / submit-script selection ──────────────────────────────────────────
+# ALGO_SUBSET filters which algo_keys are emitted and which master submit script
+# is written. Set via env var, e.g. ALGO_SUBSET=irpo_allo,irpo_random,maml.
+# Defaults to all algos and the canonical submit_atari.sh.
+_subset_raw = os.environ.get("ALGO_SUBSET", "").strip()
+if _subset_raw:
+    ALGO_SUBSET = [a.strip() for a in _subset_raw.split(",") if a.strip()]
+    unknown = [a for a in ALGO_SUBSET if a not in ALGO_CONFIG]
+    if unknown:
+        raise SystemExit(f"Unknown algo key(s) in ALGO_SUBSET: {unknown}")
+    SUBMIT_NAME = os.environ.get("SUBMIT_NAME", "submit_subset.sh")
+else:
+    ALGO_SUBSET = list(ALGO_CONFIG.keys())
+    SUBMIT_NAME = os.environ.get("SUBMIT_NAME", "submit_atari.sh")
+
 # ── Output directories ────────────────────────────────────────────────────────
 os.makedirs("scripts", exist_ok=True)
 
 generated = []  # list of (env, algo_key, chain_idx, filepath)
 
 for env in ENVS:
-    for algo_key, (partition, account, time_limit, n_chains, _) in ALGO_CONFIG.items():
+    for algo_key in ALGO_SUBSET:
+        partition, account, time_limit, n_chains, _ = ALGO_CONFIG[algo_key]
         for chain_idx in range(1, n_chains + 1):
             job_name, content = generate_sbatch(env, algo_key, chain_idx)
             suffix = chain_suffix(chain_idx, n_chains)
@@ -147,7 +163,7 @@ for env in ENVS:
             print(f"  Generated {filepath}  [{partition} | {time_limit} | chain {chain_idx}/{n_chains}]")
             generated.append((env, algo_key, chain_idx, n_chains, filepath))
 
-# ── submit_atari.sh ───────────────────────────────────────────────────────────
+# ── master submit script ──────────────────────────────────────────────────────
 # Group by (env, algo_key) to build the dependency chain submission blocks.
 from collections import defaultdict
 
@@ -158,13 +174,14 @@ for env, algo_key, chain_idx, n_chains, filepath in generated:
 lines = [
     "#!/bin/bash",
     "# =========================================================",
-    "#  submit_atari.sh – submit all chains for pacman + amidar",
+    f"#  {SUBMIT_NAME} – submit all chains for {' + '.join(ENVS)}",
+    f"#  algos: {', '.join(ALGO_SUBSET)}",
     "# =========================================================",
     "set -euo pipefail",
     "mkdir -p logs",
     "",
     'echo "========================================================="',
-    f'echo " Submitting {len(ENVS)} envs × {len(ALGO_CONFIG)} algos with dependency chains"',
+    f'echo " Submitting {len(ENVS)} envs × {len(ALGO_SUBSET)} algos with dependency chains"',
     'echo "========================================================="',
     "",
 ]
@@ -197,7 +214,7 @@ lines += [
     'echo "========================================================="',
 ]
 
-submit_path = "scripts/submit_atari.sh"
+submit_path = f"scripts/{SUBMIT_NAME}"
 with open(submit_path, "w") as f:
     f.write("\n".join(lines) + "\n")
 os.chmod(submit_path, 0o755)
