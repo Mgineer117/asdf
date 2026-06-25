@@ -12,9 +12,12 @@ class OnPolicyTrainer(BaseTrainer):
 
     def train(self):
         start_time = time.time()
-        self.evaluate_policy()  # eval_idx = -1 as this add eval_idx by 1
+        update_count = 0
+        self.evaluate_policy()  # eval_idx aligned to init in BaseTrainer.__init__
 
-        total = self.timesteps + self.init_timesteps
+        # Absolute budget: a resumed chunk continues toward the SAME target
+        # instead of adding another full `timesteps` on top of where it resumed.
+        total = self.total_timesteps
         with tqdm(
             total=total,
             initial=self.init_timesteps,
@@ -32,6 +35,7 @@ class OnPolicyTrainer(BaseTrainer):
 
                 # Unpack the dictionary using **
                 info = self.policy.learn(**learn_args)
+                update_count += 1
                 self.write_log(info["loss_dict"], self.current_step)
 
                 for key, video_array in info.get("supp_dict", {}).items():
@@ -48,6 +52,15 @@ class OnPolicyTrainer(BaseTrainer):
 
                 if self.current_step >= self.eval_interval * (self.eval_idx + 1):
                     self.evaluate_policy()
+
+                # Rolling resume checkpoint every `checkpoint_interval` learn()
+                # updates, independent of the eval cadence, so a timeout loses at
+                # most that many updates of progress.
+                if (
+                    self.checkpoint_interval > 0
+                    and update_count % self.checkpoint_interval == 0
+                ):
+                    self._save_latest_checkpoint(self.current_step)
 
         self.evaluate_policy()
 

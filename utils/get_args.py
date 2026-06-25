@@ -367,6 +367,17 @@ def get_args():
         help="The frequency (in steps) at which training metrics are logged to console and WandB.",
     )
     parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=5,
+        help=(
+            "Rolling resume checkpoint cadence, in number of policy.learn() updates "
+            "(NOT seconds). The full training state is overwritten to latest_full.pt "
+            "every this many updates so a SLURM timeout loses at most this much. <=0 "
+            "disables the periodic save (eval-time saves still happen)."
+        ),
+    )
+    parser.add_argument(
         "--eval-num",
         type=int,
         default=10,

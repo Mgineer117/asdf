@@ -94,6 +94,47 @@ class MAML_Learner(Base):
     def _share_clone(self, module: nn.Module) -> nn.Module:
         return deepcopy(module)
 
+    def get_training_state(self) -> dict:
+        """Full state for a faithful training resume: network weights (via
+        state_dict, incl. obs-rms buffers), per-option EMA perf gains, every
+        critic's Adam optimizer moments, and the intrinsic-reward normalizer.
+        Saving only state_dict() restarts the critic optimizers / perf-gain EMA
+        / reward normalizer from scratch on resume."""
+        state = {
+            "modules": self.state_dict(),
+            "perf_gains": self.perf_gains.detach().cpu(),
+            "critic_optim": [o.state_dict() for o in self.critic_optim],
+            "wall_clock_time": self.wall_clock_time,
+            "target_kl": self.target_kl,
+        }
+        rms = getattr(self.intrinsic_reward_fn, "reward_rms", None)
+        if rms is not None:
+            state["reward_rms"] = {"mean": rms.mean, "var": rms.var, "count": rms.count}
+        return state
+
+    def load_training_state(self, ckpt) -> None:
+        """Inverse of :meth:`get_training_state`; accepts a bare module
+        state_dict (legacy checkpoints) as a fallback."""
+        if not (isinstance(ckpt, dict) and "modules" in ckpt):
+            self.load_state_dict(ckpt, strict=False)  # legacy checkpoint
+            return
+
+        self.load_state_dict(ckpt["modules"], strict=False)
+        if ckpt.get("perf_gains") is not None:
+            self.perf_gains = ckpt["perf_gains"].to(self.device)
+        for o, sd in zip(self.critic_optim, ckpt.get("critic_optim", [])):
+            o.load_state_dict(sd)
+        if ckpt.get("wall_clock_time") is not None:
+            self.wall_clock_time = ckpt["wall_clock_time"]
+        if ckpt.get("target_kl") is not None:
+            self.target_kl = ckpt["target_kl"]
+        rms_state = ckpt.get("reward_rms")
+        rms = getattr(self.intrinsic_reward_fn, "reward_rms", None)
+        if rms_state is not None and rms is not None:
+            rms.mean = rms_state["mean"]
+            rms.var = rms_state["var"]
+            rms.count = rms_state["count"]
+
     def forward(
         self,
         state: np.ndarray,

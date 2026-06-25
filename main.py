@@ -46,12 +46,21 @@ def find_latest_checkpoint(log_base_dir: str, env_name: str, algo_name: str, see
 
 def load_checkpoint_into_algo(algo, ckpt_path: str, device) -> int:
     """Load latest_full.pt into algo.policy and return the saved step count."""
-    checkpoint = torch.load(ckpt_path, map_location=device)
+    # weights_only=False: our own full-state checkpoint carries optimizer state
+    # and numpy reward-normalizer stats, not just tensors, so PyTorch >=2.6's
+    # weights_only=True default would reject it. Trusted (self-produced) source.
+    checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
     saved_step = checkpoint.get("step", 0)
     policy_state = checkpoint.get("policy_state", {})
 
     try:
-        algo.policy.load_state_dict(policy_state, strict=False)
+        # Restore the FULL training state (weights + critic optimizers + perf-gain
+        # EMA + reward normalizer) so training continues rather than restarting
+        # those from scratch. Falls back to a bare state_dict for legacy ckpts.
+        if hasattr(algo.policy, "load_training_state"):
+            algo.policy.load_training_state(policy_state)
+        else:
+            algo.policy.load_state_dict(policy_state, strict=False)
         print(f"[Resume] Loaded checkpoint from {ckpt_path} at step={saved_step}")
     except Exception as e:
         print(f"[Resume] WARNING: Could not fully load checkpoint state: {e}")

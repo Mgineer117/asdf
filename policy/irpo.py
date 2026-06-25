@@ -159,6 +159,57 @@ class IRPO_Learner(Base):
     def _share_clone(self, module: nn.Module) -> nn.Module:
         return deepcopy(module)
 
+    def get_training_state(self) -> dict:
+        """Full state required to *resume training* faithfully (not merely run
+        inference): all network weights (actor + critics via state_dict), the
+        per-option EMA performance gains, every critic's Adam optimizer moments,
+        the snapshot inference policies, and the intrinsic-reward normalizer.
+
+        Saving only ``state_dict()`` (the old checkpoint behaviour) silently
+        restarts the critic optimizers, the perf-gain EMA, and the reward
+        normalizer from scratch on resume, which disrupts learning."""
+        state = {
+            "modules": self.state_dict(),
+            "perf_gains": self.perf_gains.detach().cpu(),
+            "ext_critic_optim": [o.state_dict() for o in self.ext_critic_optim],
+            "int_critic_optim": [o.state_dict() for o in self.int_critic_optim],
+            "final_exp_policies": [p.state_dict() for p in self.final_exp_policies],
+            "wall_clock_time": self.wall_clock_time,
+            "target_kl": self.target_kl,
+        }
+        rms = getattr(self.intrinsic_reward_fn, "reward_rms", None)
+        if rms is not None:
+            state["reward_rms"] = {"mean": rms.mean, "var": rms.var, "count": rms.count}
+        return state
+
+    def load_training_state(self, ckpt) -> None:
+        """Inverse of :meth:`get_training_state`. Accepts either the rich dict
+        it produces or a bare module ``state_dict`` (legacy actor/critic-only
+        checkpoints), so old checkpoints still load."""
+        if not (isinstance(ckpt, dict) and "modules" in ckpt):
+            self.load_state_dict(ckpt, strict=False)  # legacy checkpoint
+            return
+
+        self.load_state_dict(ckpt["modules"], strict=False)
+        if ckpt.get("perf_gains") is not None:
+            self.perf_gains = ckpt["perf_gains"].to(self.device)
+        for o, sd in zip(self.ext_critic_optim, ckpt.get("ext_critic_optim", [])):
+            o.load_state_dict(sd)
+        for o, sd in zip(self.int_critic_optim, ckpt.get("int_critic_optim", [])):
+            o.load_state_dict(sd)
+        for p, sd in zip(self.final_exp_policies, ckpt.get("final_exp_policies", [])):
+            p.load_state_dict(sd)
+        if ckpt.get("wall_clock_time") is not None:
+            self.wall_clock_time = ckpt["wall_clock_time"]
+        if ckpt.get("target_kl") is not None:
+            self.target_kl = ckpt["target_kl"]
+        rms_state = ckpt.get("reward_rms")
+        rms = getattr(self.intrinsic_reward_fn, "reward_rms", None)
+        if rms_state is not None and rms is not None:
+            rms.mean = rms_state["mean"]
+            rms.var = rms_state["var"]
+            rms.count = rms_state["count"]
+
     def init_exp_policies(self):
         """
         Initializes the exploratory policies for each intrinsic reward type by cloning the base actor.

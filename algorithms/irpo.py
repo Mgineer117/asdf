@@ -77,15 +77,23 @@ class IRPO_Algorithm(nn.Module):
 
         # === Meta-train using options === #'
         self.define_base_policy()
+        # `resume_init_timesteps` (set by main.py from the checkpoint) is the
+        # ABSOLUTE step already reached, so it replaces the extractor offset
+        # rather than adding to it. The budget stays fixed at base_offset +
+        # timesteps so a resumed chunk trains only the remainder.
+        base_offset = self.current_timesteps
         resume_offset = getattr(self.args, "resume_init_timesteps", 0)
+        init_timesteps = resume_offset if resume_offset > 0 else base_offset
         trainer = OnPolicyTrainer(
             env=self.env,
             policy=self.policy,
             sampler=sampler,
             logger=self.logger,
             writer=self.writer,
-            init_timesteps=self.current_timesteps + resume_offset,
+            init_timesteps=init_timesteps,
             timesteps=self.args.timesteps,
+            total_timesteps=base_offset + self.args.timesteps,
+            checkpoint_interval=getattr(self.args, "checkpoint_interval", 5),
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,
             rendering=self.args.rendering,

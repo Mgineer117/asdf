@@ -27,6 +27,8 @@ class BaseTrainer:
         writer: SummaryWriter,
         init_timesteps: int = 0,
         timesteps: int = 1e6,
+        total_timesteps: int | None = None,
+        checkpoint_interval: int = 5,
         log_interval: int = 100,
         eval_num: int = 10,
         rendering: bool = False,
@@ -43,11 +45,29 @@ class BaseTrainer:
         # training parameters
         self.init_timesteps = init_timesteps
         self.timesteps = timesteps
+        # Absolute budget the run trains *up to*. When None we fall back to the
+        # legacy additive form (timesteps + init), which inflates the target on
+        # every resume; passing it explicitly keeps the budget fixed across a
+        # chained run so a resume trains only the remainder.
+        self.total_timesteps = (
+            total_timesteps if total_timesteps is not None
+            else self.timesteps + self.init_timesteps
+        )
+        # Cadence (in number of policy.learn() updates) for the rolling resume
+        # checkpoint, independent of the eval cadence so a timeout loses at most
+        # this many updates of progress. <= 0 disables the periodic save.
+        self.checkpoint_interval = int(checkpoint_interval)
 
         self.log_interval = log_interval
         self.eval_interval = int(self.timesteps / self.log_interval)
 
-        self.eval_idx, self.current_step = -1, 0
+        # Align eval_idx with where we resume so a chained job neither re-fires
+        # nor spams the evals that already ran in earlier chunks.
+        self.current_step = 0
+        self.eval_idx = (
+            self.init_timesteps // self.eval_interval - 1
+            if self.eval_interval > 0 else -1
+        )
 
         # initialize the essential training components
         self.best_return_mean = -float("inf")
@@ -266,13 +286,22 @@ class BaseTrainer:
             )
 
         # --- SLURM job-chain resume: overwrite a single latest_full.pt each eval ---
-        # Stores the complete policy state (all sub-modules + optimizers if available)
-        # and the current timestep so the next chain segment can continue seamlessly.
+        self._save_latest_checkpoint(step)
+
+    def _save_latest_checkpoint(self, step):
+        """Atomically overwrite a single latest_full.pt holding the FULL training
+        state (network weights + critic-optimizer moments + perf-gain EMA + the
+        intrinsic-reward normalizer via policy.get_training_state) plus the
+        absolute timestep, so the next chain segment continues seamlessly. Called
+        both at each eval and on a wall-clock interval from the train loop, so a
+        timeout loses at most one interval of progress. Falls back to a bare
+        state_dict for policies without get_training_state."""
         try:
-            checkpoint = {
-                "step": step,
-                "policy_state": self.policy.state_dict(),
-            }
+            if hasattr(self.policy, "get_training_state"):
+                policy_state = self.policy.get_training_state()
+            else:
+                policy_state = self.policy.state_dict()
+            checkpoint = {"step": int(step), "policy_state": policy_state}
             tmp_path = os.path.join(self.logger.checkpoint_dir, "latest_full.pt.tmp")
             final_path = os.path.join(self.logger.checkpoint_dir, "latest_full.pt")
             torch.save(checkpoint, tmp_path)
