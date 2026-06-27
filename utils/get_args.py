@@ -424,6 +424,24 @@ def get_args():
         help="The coefficient for the entropy regularization term in the loss function (encourages exploration).",
     )
     parser.add_argument(
+        "--drnd-lr",
+        type=float,
+        default=3e-4,
+        help="Learning rate for the DRND predictor network optimizer.",
+    )
+    parser.add_argument(
+        "--int-reward-scaler",
+        type=float,
+        default=1.0,
+        help="Initial scale factor applied to the intrinsic reward before combining with extrinsic reward (DRND).",
+    )
+    parser.add_argument(
+        "--ext-reward-scaler",
+        type=float,
+        default=2.0,
+        help="Scale factor applied to the extrinsic reward in DRND.",
+    )
+    parser.add_argument(
         "--gamma",
         type=float,
         default=None,
