@@ -20,7 +20,7 @@ picks up from the saved WandB run-ID and latest checkpoint.
 import os
 
 # ── Focused environments ──────────────────────────────────────────────────────
-ENVS = ["pacman", "amidar"]
+ENVS = ["pacman", "amidar", "bankheist", "alien"]
 
 # ── Per-algo cluster config ───────────────────────────────────────────────────
 # algo_key → (partition, account, time_per_job, n_chains, extra_flags)
