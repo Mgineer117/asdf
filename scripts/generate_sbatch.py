@@ -97,7 +97,7 @@ done"""
 def make_run_commands(env: str, algo_key: str, is_resume: bool) -> str:
     algo_cli = ALGO_CLI_NAME.get(algo_key, algo_key)
     extra_flags = ALGO_CONFIG[algo_key][4]
-    resume_flag = " \\\n        --resume-run" if is_resume else ""
+    resume_flag = " \\\n        --resume-run"
     return RUN_COMMANDS_TEMPLATE.format(
         env=env,
         algo_cli=algo_cli,
