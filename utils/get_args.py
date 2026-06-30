@@ -63,6 +63,14 @@ def override_args(init_args):
         if getattr(args, "atari_num_exp_updates", None) is not None:
             args.num_exp_updates = args.atari_num_exp_updates
 
+    if env_name in atari_envs:
+        if getattr(args, "atari_target_kl", None) is not None:
+            args.target_kl = args.atari_target_kl
+
+    if env_name in atari_envs:
+        if getattr(args, "atari_drnd_lr", None) is not None:
+            args.drnd_lr = args.atari_drnd_lr
+
     # Set default critic lr
     if getattr(args, "critic_lr", None) is None:
         args.critic_lr = 1e-4
@@ -412,6 +420,12 @@ def get_args():
         help="The maximum allowed KL divergence between the old and new policy. Used for early stopping in PPO or constraint in TRPO.",
     )
     parser.add_argument(
+        "--atari-target-kl",
+        type=float,
+        default=None,
+        help="Target KL divergence specifically for Atari environments.",
+    )
+    parser.add_argument(
         "--gae",
         type=float,
         default=0.98,
@@ -428,6 +442,12 @@ def get_args():
         type=float,
         default=3e-4,
         help="Learning rate for the DRND predictor network optimizer.",
+    )
+    parser.add_argument(
+        "--atari-drnd-lr",
+        type=float,
+        default=None,
+        help="Learning rate for the DRND predictor network optimizer specifically for Atari environments.",
     )
     parser.add_argument(
         "--int-reward-scaler",
@@ -476,6 +496,12 @@ def get_args():
 
     if env_name in atari_envs and getattr(args, "atari_num_exp_updates", None) is not None:
         args.num_exp_updates = args.atari_num_exp_updates
+
+    if env_name in atari_envs and getattr(args, "atari_target_kl", None) is not None:
+        args.target_kl = args.atari_target_kl
+
+    if env_name in atari_envs and getattr(args, "atari_drnd_lr", None) is not None:
+        args.drnd_lr = args.atari_drnd_lr
 
     if getattr(args, "critic_lr", None) is None:
         args.critic_lr = 1e-4
