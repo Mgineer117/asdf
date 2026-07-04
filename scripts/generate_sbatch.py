@@ -20,23 +20,27 @@ picks up from the saved WandB run-ID and latest checkpoint.
 import os
 
 # ── Focused environments ──────────────────────────────────────────────────────
-ENVS = ["pacman", "amidar", "bankheist", "alien"]
+_envs_raw = os.environ.get("ENVS_SUBSET", "").strip()
+if _envs_raw:
+    ENVS = [e.strip() for e in _envs_raw.split(",") if e.strip()]
+else:
+    ENVS = ["pacman", "amidar", "bankheist", "alien"]
 
 # ── Per-algo cluster config ───────────────────────────────────────────────────
 # algo_key → (partition, account, time_per_job, n_chains, extra_flags)
 ALGO_CONFIG = {
-    "ppo":         ("eng-research-gpu",    "huytran1-ic", "2-00:00:00", 3, ""),
-    "trpo":        ("eng-research-gpu",    "huytran1-ic", "2-00:00:00", 3, ""),
-    "psne":        ("eng-research-gpu",    "huytran1-ic", "2-00:00:00", 3, ""),
-    "irpo_random": ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 2,
+    "ppo":         ("eng-research-gpu",    "huytran1-ic", "2-00:00:00", 4, ""),
+    "trpo":        ("eng-research-gpu",    "huytran1-ic", "2-00:00:00", 4, ""),
+    "psne":        ("eng-research-gpu",    "huytran1-ic", "2-00:00:00", 4, ""),
+    "irpo_random": ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
                     "--int-reward-type random"),
-    "irpo_allo":   ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 2,
+    "irpo_allo":   ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
                     "--int-reward-type allo"),
-    "maml":        ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 2,
+    "maml":        ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
                     "--int-reward-type allo"),
-    "hrl":         ("csl",                "huytran1-ic", "6-00:00:00", 1,
+    "hrl":         ("csl",                "huytran1-ic", "7-00:00:00", 1,
                     "--int-reward-type allo"),
-    "drnd":        ("csl",                "huytran1-ic", "6-00:00:00", 1, ""),
+    "drnd":        ("csl",                "huytran1-ic", "7-00:00:00", 1, ""),
 }
 
 # The CLI algo name may differ from the algo_key (irpo_random → irpo)
@@ -88,7 +92,7 @@ wait
 RUN_COMMANDS_TEMPLATE = """\
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {{0..4}}; do
-    python3 main.py --project Atari --env {env} --algo {algo_cli} {extra_flags} \\
+    python3 main.py --project Atari-final --env {env} --algo {algo_cli} {extra_flags} \\
         --seed $SEED --gpu-idx 0{resume_flag} &
     sleep 3
 done"""

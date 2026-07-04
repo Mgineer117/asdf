@@ -396,6 +396,9 @@ class MAML_Learner(Base):
 
         self.eval()
 
+        # Clear GPU cache after learn step to reclaim memory
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
         return {"loss_dict": loss_dict, "timesteps": total_timesteps}
 
     def learn_exploratory_policy(self, actor: nn.Module, batch: dict, i: int):
@@ -547,10 +550,12 @@ class MAML_Learner(Base):
 
             Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
 
-            # Compute search direction (F_inv * g) via CG
-            step_dir = conjugate_gradients(Hv, grad_flat, nsteps=10)
+            # Compute search direction (F_inv * g) via CG (reduced from 10 to 5 iterations to save memory)
+            step_dir = conjugate_gradients(Hv, grad_flat, nsteps=5)
 
             # Compute step size scaling (Lagrange multiplier)
+            # Recompute HVP to get fresh graph without accumulating old ones
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
             sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
             if sAs < 1e-8:
                 full_step = torch.zeros_like(step_dir)
@@ -562,11 +567,12 @@ class MAML_Learner(Base):
                 print("WARNING: full_step contains NaN/Inf! Rejecting update.")
                 full_step = torch.zeros_like(step_dir)
 
-            # Line Search
+            # Line Search (reduced backtrack_iters from 15 to 10 to save memory)
             with torch.no_grad():
                 old_params = flat_params(self.actor)
                 success = False
-                for i in range(backtrack_iters):
+                backtrack_iters_effective = min(10, backtrack_iters)  # Cap at 10 iterations
+                for i in range(backtrack_iters_effective):
                     step_frac = backtrack_coeff**i
                     new_params = old_params - step_frac * full_step
                     set_flat_params(self.actor, new_params)
@@ -580,6 +586,8 @@ class MAML_Learner(Base):
                 if not success:
                     set_flat_params(self.actor, old_params)
 
+            # Clear GPU cache after TRPO update to reclaim memory for next step
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
             return i, success
 
         elif self.base_policy_update_type == "sgd":
