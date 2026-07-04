@@ -32,7 +32,7 @@ mkdir -p logs
 
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {0..4}; do
-    python3 main.py --project Atari --env pacman --algo maml --int-reward-type allo \
+    python3 main.py --project Atari-final --env pacman --algo maml --int-reward-type allo \
         --seed $SEED --gpu-idx 0 \
         --resume-run &
     sleep 3

@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:1
-#SBATCH --time=6-00:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --output=logs/bankheist_hrl.o%j
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=minjae5@illinois.edu
@@ -32,7 +32,7 @@ mkdir -p logs
 
 # === Run 5 seeds (0-4) in parallel on 1 GPU / Node === #
 for SEED in {0..4}; do
-    python3 main.py --project Atari --env bankheist --algo hrl --int-reward-type allo \
+    python3 main.py --project Atari-final --env bankheist --algo hrl --int-reward-type allo \
         --seed $SEED --gpu-idx 0 \
         --resume-run &
     sleep 3
