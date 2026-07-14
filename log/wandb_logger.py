@@ -43,7 +43,7 @@ class WandbLogger(BaseLogger):
             if resume_run and run_id_path and os.path.isfile(run_id_path):
                 with open(run_id_path, "r") as f:
                     run_id = f.read().strip()
-                resume_mode = "must"
+                resume_mode = "allow"
                 print(f"[WandB] Resuming run ID={run_id} from {run_id_path}")
             else:
                 run_id = str(uuid.uuid4())
