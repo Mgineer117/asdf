@@ -36,6 +36,10 @@ ALGO_CONFIG = {
                     "--int-reward-type random"),
     "irpo_allo":   ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
                     "--int-reward-type allo"),
+    "maml_random": ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
+                    "--int-reward-type random"),
+    "maml_allo":   ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
+                    "--int-reward-type allo"),
     "maml":        ("IllinoisComputes-GPU","huytran1-ic", "3-00:00:00", 3,
                     "--int-reward-type allo"),
     "hrl":         ("csl",                "huytran1-ic", "7-00:00:00", 1,
@@ -47,6 +51,8 @@ ALGO_CONFIG = {
 ALGO_CLI_NAME = {
     "irpo_random": "irpo",
     "irpo_allo":   "irpo",
+    "maml_random": "maml",
+    "maml_allo":   "maml",
 }
 
 # ── Templates ─────────────────────────────────────────────────────────────────
